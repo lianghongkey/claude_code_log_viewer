@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Log Viewer</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<style>
+:root{--bg:#ffffff;--sidebar:#f6f8fa;--card:#f0f2f5;--border:#d1d9e0;--text:#1f2328;--text2:#656d76;--accent:#0969da;--user:#ddf4ff;--user-border:#54aeff66;--assist:#ffffff;--think-bg:#fff8c5;--think-border:#d4a72c66;--tool-bg:#dafbe1;--tool-border:#2da44e66;--result-bg:#f0f0ff;--result-border:#6e7bff66;--err-bg:#ffebe9;--err-border:#ff818266;--green:#1a7f37;--orange:#bf8700;--red:#cf222e;--blue:#0969da;--purple:#8250df;--shadow:0 1px 3px rgba(0,0,0,.08)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
+#app{display:flex;height:100vh}
+#sidebar{width:360px;min-width:360px;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sidebar-header{padding:16px;border-bottom:1px solid var(--border);background:#fff}
+.sidebar-header h2{font-size:15px;margin-bottom:12px;color:var(--accent);letter-spacing:-.3px}
+.sidebar-header select,.sidebar-header input{width:100%;padding:8px 12px;background:#fff;border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;margin-bottom:8px;outline:none;transition:border .15s}
+.sidebar-header select:focus,.sidebar-header input:focus{border-color:var(--accent);box-shadow:0 0 0 3px #0969da22}
+#file-list{flex:1;overflow-y:auto;padding:8px}
+.file-item{padding:12px;border-radius:10px;cursor:pointer;margin-bottom:4px;border:1px solid transparent;transition:all .15s}
+.file-item:hover{background:#fff;border-color:var(--border);box-shadow:var(--shadow)}
+.file-item.active{background:var(--user);border-color:var(--accent);box-shadow:0 0 0 2px #0969da22}
+.file-item .meta{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:4px}
+.file-item .preview{font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.file-item .tags{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.tag{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600}
+.tag.model{color:#fff;background:var(--green)}
+.tag.ver{color:var(--purple);background:#f0e8ff;border:1px solid #8250df33}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#f9fafb}
+#welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text2)}
+#welcome h1{font-size:26px;color:var(--text);margin-bottom:8px;font-weight:700}
+#conversation{flex:1;display:flex;flex-direction:column;overflow:hidden;display:none}
+#conv-header{padding:12px 24px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:13px;box-shadow:var(--shadow)}
+#conv-header .label{color:var(--text2);font-size:12px}
+#conv-header .value{color:var(--accent);font-weight:600}
+#messages{flex:1;overflow-y:auto;padding:24px;scroll-behavior:smooth}
+.msg{margin-bottom:16px;border-radius:12px;padding:16px 20px;position:relative;line-height:1.7;box-shadow:var(--shadow)}
+.msg.user{background:var(--user);border:1px solid var(--user-border);margin-right:8%}
+.msg.assistant{background:var(--assist);border:1px solid var(--border);margin-left:2%}
+.msg.summary{background:var(--think-bg);border:1px solid var(--think-border);margin:0 5%}
+.msg-role{font-size:12px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.msg-role .role-user{color:var(--blue);background:#ddf4ff;padding:2px 10px;border-radius:10px;font-size:11px}
+.msg-role .role-assistant{color:var(--green);background:#dafbe1;padding:2px 10px;border-radius:10px;font-size:11px}
+.msg-role .role-summary{color:var(--orange);background:#fff8c5;padding:2px 10px;border-radius:10px;font-size:11px}
+.msg-role .ts{color:var(--text2);font-weight:400;font-size:11px}
+.msg-content{font-size:14px}
+.msg-content p{margin:0.5em 0}
+.msg-content pre{background:#f6f8fa;border:1px solid var(--border);border-radius:8px;padding:14px;overflow-x:auto;margin:10px 0;position:relative}
+.msg-content pre::before{content:attr(data-lang);position:absolute;top:6px;right:10px;font-size:10px;color:var(--text2);text-transform:uppercase;font-weight:600;background:#f6f8fa;padding:0 4px}
+.msg-content code{font-family:'Fira Code','JetBrains Mono',Consolas,monospace;font-size:13px}
+.msg-content code:not(pre code){background:#eff1f3;padding:2px 7px;border-radius:6px;font-size:12px;color:var(--red)}
+.msg-content img{max-width:100%;border-radius:8px;box-shadow:var(--shadow)}
+.msg-content table{border-collapse:collapse;width:100%;margin:10px 0;border-radius:8px;overflow:hidden;box-shadow:var(--shadow)}
+.msg-content th{background:var(--sidebar);font-weight:600;font-size:13px}
+.msg-content th,.msg-content td{border:1px solid var(--border);padding:8px 12px;text-align:left;font-size:13px}
+.msg-content blockquote{border-left:4px solid var(--accent);padding:8px 16px;margin:10px 0;background:#f6f8fa;border-radius:0 8px 8px 0;color:var(--text2)}
+.msg-content h1,.msg-content h2,.msg-content h3{margin:0.6em 0 0.3em;color:var(--text);border-bottom:1px solid var(--border);padding-bottom:4px}
+.msg-content ul,.msg-content ol{padding-left:24px;margin:6px 0}
+.msg-content li{margin:3px 0}
+.msg-content a{color:var(--accent);text-decoration:none}
+.msg-content a:hover{text-decoration:underline}
+.msg-content hr{border:none;border-top:1px solid var(--border);margin:12px 0}
+.collapsible{border:1px solid var(--border);border-radius:10px;margin:10px 0;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.collapsible-header{padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;user-select:none;transition:all .15s}
+.collapsible-header:hover{filter:brightness(0.97)}
+.collapsible-header .arrow{transition:transform .2s;font-size:10px;color:var(--text2)}
+.collapsible-header.open .arrow{transform:rotate(90deg)}
+.collapsible-body{display:none;padding:0;border-top:1px solid var(--border);max-height:700px;overflow:auto}
+.collapsible-body.show{display:block}
+.think-block .collapsible-header{color:#9a6700;background:var(--think-bg);border-color:var(--think-border)}
+.tool-block .collapsible-header{color:var(--green);background:var(--tool-bg);border-color:var(--tool-border)}
+.result-block .collapsible-header{color:var(--purple);background:var(--result-bg);border-color:var(--result-border)}
+.err-block .collapsible-header{color:var(--red);background:var(--err-bg);border-color:var(--err-border)}
+.tool-input{font-size:12px;color:var(--text);white-space:pre-wrap;word-break:break-all;font-family:'Fira Code',Consolas,monospace;padding:14px;background:#f6f8fa}
+.result-content{font-size:13px;white-space:pre-wrap;word-break:break-word;font-family:'Fira Code',Consolas,monospace;color:var(--text2);padding:14px;background:#fafbfc}
+.shell-block{background:#24292e;color:#e1e4e8;border-radius:8px;padding:14px;margin:8px 0;font-family:'Fira Code',Consolas,monospace;font-size:13px;overflow-x:auto}
+.shell-block .prompt{color:#85e89d}
+.shell-block .cmd{color:#e1e4e8}
+.json-view{padding:14px;font-size:13px;font-family:'Fira Code',Consolas,monospace}
+.json-key{color:#0550ae;font-weight:600}
+.json-str{color:#0a3069}
+.json-num{color:#0550ae}
+.json-bool{color:#cf222e;font-weight:600}
+.json-null{color:#656d76;font-style:italic}
+.usage-bar{display:inline-flex;gap:10px;font-size:11px;color:var(--text2);margin-left:auto;background:var(--sidebar);padding:3px 10px;border-radius:8px}
+.loading{text-align:center;padding:40px;color:var(--text2)}
+::-webkit-scrollbar{width:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#d1d9e0;border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#afb8c1}
+.load-file-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;margin:8px 0;transition:all .15s}
+.load-file-btn:hover{background:#0860ca;box-shadow:0 2px 6px rgba(9,105,218,.3)}
+.load-file-btn.loading{opacity:.6;cursor:wait}
+.persisted-note{color:var(--orange);font-size:12px;font-style:italic;margin:4px 0}
+</style>
+</head>
+<body>
+<div id="app">
+<aside id="sidebar">
+<div class="sidebar-header">
+<h2>Claude 日志查看器</h2>
+<select id="project-select"><option value="">加载中...</option></select>
+<input type="text" id="search" placeholder="搜索对话...">
+</div>
+<div id="file-list"></div>
+</aside>
+<main id="main">
+<div id="welcome"><h1>Claude Code 日志查看器</h1><p>从左侧选择一个对话开始查看</p></div>
+<div id="conversation"><div id="conv-header"></div><div id="messages"></div></div>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+marked.setOptions({highlight:(code,lang)=>{try{return lang&&hljs.getLanguage(lang)?hljs.highlight(code,{language:lang}).value:hljs.highlightAuto(code).value}catch(e){return code}},breaks:true});
+let currentProject='',allFiles=[],currentSession='';
+
+async function init(){
+  const projects=await(await fetch('/api/projects')).json();
+  const sel=document.getElementById('project-select');
+  sel.innerHTML=projects.map(p=>`<option value="${p.name}">${p.display} (${p.count})</option>`).join('');
+  if(projects.length){sel.value=projects[0].name;loadFiles(projects[0].name)}
+  sel.onchange=()=>loadFiles(sel.value);
+  document.getElementById('search').oninput=e=>filterFiles(e.target.value);
+}
+
+async function loadFiles(project){
+  currentProject=project;
+  const el=document.getElementById('file-list');
+  el.innerHTML='<div class="loading">加载中...</div>';
+  allFiles=await(await fetch(`/api/files?project=${encodeURIComponent(project)}`)).json();
+  renderFileList(allFiles);
+}
+
+function renderFileList(files){
+  const el=document.getElementById('file-list');
+  el.innerHTML=files.map(f=>{
+    const d=f.timestamp?new Date(f.timestamp):new Date(f.modified*1000);
+    const date=d.toLocaleDateString('zh-CN');
+    const time=d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+    const size=f.size>1048576?(f.size/1048576).toFixed(1)+'MB':(f.size/1024).toFixed(0)+'KB';
+    return `<div class="file-item" data-file="${f.filename}" onclick="loadConversation('${f.filename}',this)">
+      <div class="meta"><span>${date} ${time}</span><span>${size}</span></div>
+      <div class="preview">${esc(f.preview||'(空对话)')}</div>
+      <div class="tags">${f.model?`<span class="tag model">${f.model}</span>`:''}${f.version?`<span class="tag ver">v${f.version}</span>`:''}</div>
+    </div>`;
+  }).join('');
+}
+
+function filterFiles(q){
+  q=q.toLowerCase();
+  renderFileList(q?allFiles.filter(f=>(f.preview||'').toLowerCase().includes(q)||f.filename.includes(q)||(f.model||'').toLowerCase().includes(q)):allFiles);
+}
+
+async function loadConversation(filename,el){
+  document.querySelectorAll('.file-item').forEach(e=>e.classList.remove('active'));
+  if(el)el.classList.add('active');
+  document.getElementById('welcome').style.display='none';
+  const conv=document.getElementById('conversation');
+  conv.style.display='flex';
+  const msgEl=document.getElementById('messages');
+  msgEl.innerHTML='<div class="loading">加载对话...</div>';
+  const entries=await(await fetch(`/api/file?project=${encodeURIComponent(currentProject)}&file=${encodeURIComponent(filename)}`)).json();
+  currentSession=filename.replace('.jsonl','');
+  renderConversation(entries,filename);
+}
+function renderConversation(entries,filename){
+  const msgs=entries.filter(e=>e.type==='user'||e.type==='assistant'||e.type==='summary');
+  const hdr=document.getElementById('conv-header');
+  const first=entries.find(e=>e.sessionId||e.type==='user');
+  const models=[...new Set(entries.filter(e=>e.type==='assistant'&&e.message?.model).map(e=>e.message.model))];
+  const userMsgs=msgs.filter(m=>m.type==='user'&&!isToolResult(m));
+  const assistMsgs=msgs.filter(m=>m.type==='assistant');
+  const totalIn=assistMsgs.reduce((s,m)=>(s+(m.message?.usage?.input_tokens||0)),0);
+  const totalOut=assistMsgs.reduce((s,m)=>(s+(m.message?.usage?.output_tokens||0)),0);
+  hdr.innerHTML=`<span><span class="label">会话</span> <span class="value">${filename.replace('.jsonl','').slice(0,8)}</span></span>
+    <span><span class="label">模型</span> <span class="value">${models.join(', ')||'未知'}</span></span>
+    <span><span class="label">分支</span> <span class="value">${first?.gitBranch||'-'}</span></span>
+    <span><span class="label">消息</span> <span class="value">${userMsgs.length}轮</span></span>
+    <span class="usage-bar">输入 ${fmtTokens(totalIn)} · 输出 ${fmtTokens(totalOut)}</span>`;
+  const msgEl=document.getElementById('messages');
+  msgEl.innerHTML=msgs.map(m=>renderMessage(m)).join('');
+  msgEl.querySelectorAll('pre code').forEach(b=>{try{hljs.highlightElement(b)}catch(e){}});
+  msgEl.scrollTop=0;
+}
+
+function isToolResult(m){
+  const c=m.message?.content;
+  return Array.isArray(c)&&c.length>0&&c.every(b=>b.type==='tool_result');
+}
+
+function renderMessage(m){
+  const ts=m.timestamp?new Date(m.timestamp).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
+  if(m.type==='user'){
+    if(isToolResult(m)) return renderToolResults(m);
+    return `<div class="msg user"><div class="msg-role"><span class="role-user">👤 用户</span><span class="ts">${ts}</span></div><div class="msg-content">${renderContent(m.message?.content)}</div></div>`;
+  }
+  if(m.type==='assistant'){
+    const model=m.message?.model||'';
+    const usage=m.message?.usage;
+    const usg=usage?`<span class="usage-bar">in:${fmtTokens(usage.input_tokens||0)} out:${fmtTokens(usage.output_tokens||0)}</span>`:'';
+    return `<div class="msg assistant"><div class="msg-role"><span class="role-assistant">🤖 助手</span><span class="ts">${ts} · ${model}</span>${usg}</div><div class="msg-content">${renderAssistantContent(m.message?.content)}</div></div>`;
+  }
+  if(m.type==='summary'){
+    return `<div class="msg summary"><div class="msg-role"><span class="role-summary">📋 摘要</span><span class="ts">${ts}</span></div><div class="msg-content">${renderContent(m.message?.content)}</div></div>`;
+  }
+  return '';
+}
+
+function renderContent(content){
+  if(!content) return '';
+  if(typeof content==='string') return marked.parse(content);
+  if(Array.isArray(content)) return content.map(b=>{
+    if(typeof b==='string') return marked.parse(b);
+    if(b.type==='text') return marked.parse(b.text||'');
+    if(b.type==='thinking') return makeCollapsible('think-block','🧠 思考过程',`<div class="result-content">${esc(b.thinking||'')}</div>`);
+    if(b.type==='tool_use') return renderToolUse(b);
+    if(b.type==='tool_result') return renderToolResultBlock(b);
+    if(b.type==='image') return '<div style="color:var(--text2);padding:8px">[图片内容]</div>';
+    return `<pre><code class="language-json">${esc(JSON.stringify(b,null,2))}</code></pre>`;
+  }).join('');
+  return marked.parse(String(content));
+}
+
+function renderAssistantContent(content){
+  if(!content) return '';
+  if(typeof content==='string') return marked.parse(content);
+  if(!Array.isArray(content)) return marked.parse(String(content));
+  return content.map(b=>{
+    if(b.type==='text') return marked.parse(b.text||'');
+    if(b.type==='thinking') return makeCollapsible('think-block','🧠 思考过程',`<div class="result-content">${esc(b.thinking||'')}</div>`,false);
+    if(b.type==='tool_use') return renderToolUse(b);
+    if(b.type==='tool_result') return renderToolResultBlock(b);
+    return '';
+  }).join('');
+}
+function renderToolUse(b){
+  const short=summarizeToolInput(b.name,b.input);
+  const isBash=b.name==='Bash'||b.name==='bash';
+  const isRead=b.name==='Read'||b.name==='read';
+  const isWrite=b.name==='Write'||b.name==='write';
+  const isEdit=b.name==='Edit'||b.name==='edit';
+  let body='';
+  if(isBash){
+    const cmd=b.input?.command||'';
+    body=`<div class="shell-block"><span class="prompt">$ </span><span class="cmd">${esc(cmd)}</span></div>`;
+  } else {
+    body=`<div class="json-view">${colorizeJson(b.input)}</div>`;
+  }
+  const icon=isBash?'💻':isRead?'📖':(isWrite||isEdit)?'✏️':'🔧';
+  return makeCollapsible('tool-block',`${icon} <span style="font-weight:700">${b.name}</span> <span style="color:var(--text2);font-weight:400;font-size:12px">${esc(short)}</span>`,body,false);
+}
+
+function renderToolResultBlock(b){
+  let content='';
+  if(typeof b.content==='string') content=b.content;
+  else if(Array.isArray(b.content)) content=b.content.map(c=>c.text||JSON.stringify(c)).join('\n');
+  else content=JSON.stringify(b.content,null,2);
+  const lines=content.split('\n').length;
+  const isErr=b.is_error;
+  const cls=isErr?'err-block':'result-block';
+  const icon=isErr?'❌':'📄';
+  const persisted=parsePersistedOutput(content);
+  let rendered;
+  if(persisted){
+    rendered=`<div class="result-content"><p class="persisted-note">${esc(persisted.note)}</p>${persisted.preview?'<pre style="margin:8px 0">'+esc(persisted.preview)+'</pre>':''}<button class="load-file-btn" onclick="loadToolResult(this,'${persisted.toolId}','${persisted.session}')">📂 加载完整内容 (${persisted.size})</button><div class="full-content"></div></div>`;
+  } else {
+    rendered=tryHighlightResult(content);
+  }
+  return makeCollapsible(cls,`${icon} 执行结果 <span style="font-size:11px;color:var(--text2)">${lines}行</span>`,rendered,false);
+}
+
+function renderToolResults(m){
+  const session=m._sessionId||currentSession;
+  const blocks=(m.message?.content||[]).map(b=>{
+    let content='';
+    if(typeof b.content==='string') content=b.content;
+    else if(Array.isArray(b.content)) content=b.content.map(c=>c.text||JSON.stringify(c)).join('\n');
+    else content=JSON.stringify(b.content,null,2);
+    const lines=content.split('\n').length;
+    const isErr=b.is_error;
+    const cls=isErr?'err-block':'result-block';
+    const icon=isErr?'❌':'📄';
+    const persisted=parsePersistedOutput(content,session);
+    let rendered;
+    if(persisted){
+      rendered=`<div class="result-content"><p class="persisted-note">${esc(persisted.note)}</p>${persisted.preview?'<pre style="margin:8px 0">'+esc(persisted.preview)+'</pre>':''}<button class="load-file-btn" onclick="loadToolResult(this,'${persisted.toolId}','${persisted.session}')">📂 加载完整内容 (${persisted.size})</button><div class="full-content"></div></div>`;
+    } else {
+      rendered=tryHighlightResult(content);
+    }
+    return makeCollapsible(cls,`${icon} 工具结果 <span style="font-size:11px;color:var(--text2)">${lines}行</span>`,rendered,false);
+  }).join('');
+  return `<div style="padding:2px 20px">${blocks}</div>`;
+}
+
+function tryHighlightResult(content){
+  const trimmed=content.trim();
+  if((trimmed.startsWith('{')&&trimmed.endsWith('}'))||(trimmed.startsWith('[')&&trimmed.endsWith(']'))){
+    try{const obj=JSON.parse(trimmed);return `<div class="json-view">${colorizeJson(obj)}</div>`}catch(e){}
+  }
+  if(trimmed.match(/^\s*\d+[→│|]/m)){
+    return `<pre style="margin:0;border:none;border-radius:0;background:#fafbfc"><code>${highlightNumberedCode(trimmed)}</code></pre>`;
+  }
+  return `<div class="result-content">${esc(content)}</div>`;
+}
+
+function highlightNumberedCode(text){
+  return text.split('\n').map(line=>{
+    const m=line.match(/^(\s*\d+[→│|]\s?)(.*)/);
+    if(m) return `<span style="color:#8b949e;user-select:none">${esc(m[1])}</span>${esc(m[2])}`;
+    return esc(line);
+  }).join('\n');
+}
+function colorizeJson(obj,indent=0){
+  if(obj===null) return `<span class="json-null">null</span>`;
+  if(typeof obj==='boolean') return `<span class="json-bool">${obj}</span>`;
+  if(typeof obj==='number') return `<span class="json-num">${obj}</span>`;
+  if(typeof obj==='string'){
+    const s=esc(obj);
+    if(s.length>500) return `<span class="json-str">"${s.slice(0,500)}..."</span>`;
+    return `<span class="json-str">"${s}"</span>`;
+  }
+  const pad=' '.repeat(indent);
+  const pad2=' '.repeat(indent+2);
+  if(Array.isArray(obj)){
+    if(obj.length===0) return '[]';
+    const items=obj.map(v=>pad2+colorizeJson(v,indent+2)).join(',\n');
+    return `[\n${items}\n${pad}]`;
+  }
+  const keys=Object.keys(obj);
+  if(keys.length===0) return '{}';
+  const entries=keys.map(k=>`${pad2}<span class="json-key">"${esc(k)}"</span>: ${colorizeJson(obj[k],indent+2)}`).join(',\n');
+  return `{\n${entries}\n${pad}}`;
+}
+
+function makeCollapsible(cls,title,body,open=false){
+  const id='c'+Math.random().toString(36).slice(2,9);
+  return `<div class="collapsible ${cls}">
+    <div class="collapsible-header${open?' open':''}" onclick="toggleCollapse('${id}',this)">
+      <span class="arrow">▶</span>${title}
+    </div>
+    <div class="collapsible-body${open?' show':''}" id="${id}">${body}</div>
+  </div>`;
+}
+
+function toggleCollapse(id,hdr){
+  const body=document.getElementById(id);
+  body.classList.toggle('show');
+  hdr.classList.toggle('open');
+}
+
+function summarizeToolInput(name,input){
+  if(!input) return '';
+  const n=name.toLowerCase();
+  if(n==='read'||n==='write'||n==='edit') return input.file_path||input.path||'';
+  if(n==='bash') return (input.command||'').slice(0,80);
+  if(n==='glob') return input.pattern||'';
+  if(n==='grep') return input.pattern||'';
+  if(n==='task') return input.description||'';
+  if(n==='websearch') return input.query||'';
+  if(n==='webfetch') return input.url||'';
+  if(typeof input==='string') return input.slice(0,60);
+  const first=Object.values(input)[0];
+  return typeof first==='string'?first.slice(0,60):'';
+}
+
+function esc(s){
+  if(!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtTokens(n){
+  if(n>=1000000) return (n/1000000).toFixed(1)+'M';
+  if(n>=1000) return (n/1000).toFixed(1)+'K';
+  return String(n);
+}
+
+function parsePersistedOutput(content,session){
+  if(!content||!content.includes('persisted-output')) return null;
+  const m=content.match(/Full output saved to:.*?\/([a-f0-9-]+)\/tool-results\/([a-zA-Z0-9_]+)\.txt/);
+  if(!m) return null;
+  const sizeMatch=content.match(/Output too large \(([^)]+)\)/);
+  const previewMatch=content.match(/\nFirst [\d,]+ characters:\n([\s\S]*)/);
+  return {
+    session: m[1]||session||currentSession,
+    toolId: m[2],
+    size: sizeMatch?sizeMatch[1]:'unknown',
+    note: `输出过大已持久化到文件`,
+    preview: previewMatch?previewMatch[1].trim():''
+  };
+}
+
+async function loadToolResult(btn,toolId,session){
+  if(btn.classList.contains('loading')) return;
+  btn.classList.add('loading');
+  btn.textContent='⏳ 加载中...';
+  try{
+    const resp=await fetch(`/api/tool-result?project=${encodeURIComponent(currentProject)}&session=${encodeURIComponent(session)}&id=${encodeURIComponent(toolId)}`);
+    if(!resp.ok) throw new Error('文件未找到');
+    const data=await resp.json();
+    const container=btn.nextElementSibling;
+    const rendered=tryHighlightResult(data.content);
+    container.innerHTML=rendered;
+    container.style.maxHeight='800px';
+    container.style.overflow='auto';
+    container.style.marginTop='8px';
+    container.style.border='1px solid var(--border)';
+    container.style.borderRadius='8px';
+    btn.textContent='✅ 已加载';
+    btn.style.background='var(--green)';
+    btn.onclick=null;
+  }catch(e){
+    btn.textContent='❌ 加载失败: '+e.message;
+    btn.style.background='var(--red)';
+    btn.classList.remove('loading');
+  }
+}
+
+init();
+</script>
+</body>
+</html>
