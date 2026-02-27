@@ -37,6 +37,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .msg.user{background:var(--user);border:1px solid var(--user-border);margin-right:8%}
 .msg.assistant{background:var(--assist);border:1px solid var(--border);margin-left:2%}
 .msg.summary{background:var(--think-bg);border:1px solid var(--think-border);margin:0 5%}
+.msg.system-msg{background:#f0f0f0;border:1px solid #d1d9e0;margin:0 10%;padding:10px 16px;font-size:12px}
+.msg.progress-msg{background:#e8f4fd;border:1px solid #54aeff44;margin:0 5%}
+.msg-role .role-system{color:#656d76;background:#f0f0f0;padding:2px 10px;border-radius:10px;font-size:11px}
+.msg-role .role-progress{color:#0969da;background:#ddf4ff;padding:2px 10px;border-radius:10px;font-size:11px}
 .msg-role{font-size:12px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .msg-role .role-user{color:var(--blue);background:#ddf4ff;padding:2px 10px;border-radius:10px;font-size:11px}
 .msg-role .role-assistant{color:var(--green);background:#dafbe1;padding:2px 10px;border-radius:10px;font-size:11px}
@@ -75,7 +79,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .shell-block{background:#24292e;color:#e1e4e8;border-radius:8px;padding:14px;margin:8px 0;font-family:'Fira Code',Consolas,monospace;font-size:13px;overflow-x:auto}
 .shell-block .prompt{color:#85e89d}
 .shell-block .cmd{color:#e1e4e8}
-.json-view{padding:14px;font-size:13px;font-family:'Fira Code',Consolas,monospace}
+.json-view{padding:14px;font-size:13px;font-family:'Fira Code',Consolas,monospace;white-space:pre-wrap;word-break:break-word}
 .json-key{color:#0550ae;font-weight:600}
 .json-str{color:#0a3069}
 .json-num{color:#0550ae}
@@ -164,7 +168,7 @@ async function loadConversation(filename,el){
   renderConversation(entries,filename);
 }
 function renderConversation(entries,filename){
-  const msgs=entries.filter(e=>e.type==='user'||e.type==='assistant'||e.type==='summary');
+  const msgs=entries.filter(e=>e.type==='user'||e.type==='assistant'||e.type==='summary'||e.type==='system'||e.type==='progress');
   const hdr=document.getElementById('conv-header');
   const first=entries.find(e=>e.sessionId||e.type==='user');
   const models=[...new Set(entries.filter(e=>e.type==='assistant'&&e.message?.model).map(e=>e.message.model))];
@@ -201,7 +205,34 @@ function renderMessage(m){
     return `<div class="msg assistant"><div class="msg-role"><span class="role-assistant">🤖 助手</span><span class="ts">${ts} · ${model}</span>${usg}</div><div class="msg-content">${renderAssistantContent(m.message?.content)}</div></div>`;
   }
   if(m.type==='summary'){
-    return `<div class="msg summary"><div class="msg-role"><span class="role-summary">📋 摘要</span><span class="ts">${ts}</span></div><div class="msg-content">${renderContent(m.message?.content)}</div></div>`;
+    const summaryText=m.summary||m.message?.content||'';
+    const rendered=typeof summaryText==='string'?marked.parse(summaryText):renderContent(summaryText);
+    return `<div class="msg summary"><div class="msg-role"><span class="role-summary">📋 摘要</span><span class="ts">${ts}</span></div><div class="msg-content">${rendered}</div></div>`;
+  }
+  if(m.type==='system'){
+    const subtype=m.subtype||'';
+    let body='';
+    if(subtype==='turn_duration'){
+      const sec=(m.durationMs/1000).toFixed(1);
+      body=`<span style="color:var(--text2)">⏱ 轮次耗时 <b>${sec}s</b></span>`;
+    } else if(subtype==='api_error'){
+      const err=typeof m.error==='string'?m.error:JSON.stringify(m.error||'');
+      body=`<span style="color:var(--red)">⚠️ API错误</span> <span style="color:var(--text2)">${esc(err).slice(0,200)} · 重试 ${m.retryAttempt||'?'}/${m.maxRetries||'?'}</span>`;
+    } else if(subtype==='compact_boundary'||subtype==='microcompact_boundary'){
+      const meta=m.compactMetadata||m.microcompactMetadata||{};
+      const tokens=meta.preTokens?` (${fmtTokens(meta.preTokens)} tokens)`:'';
+      body=`<span style="color:var(--purple)">📦 ${esc(m.content||subtype)}${tokens}</span>`;
+    } else {
+      body=`<span style="color:var(--text2)">${esc(m.content||subtype||'system')}</span>`;
+    }
+    return `<div class="msg system-msg"><div class="msg-role"><span class="role-system">⚙️ 系统</span><span class="ts">${ts}</span></div><div class="msg-content">${body}</div></div>`;
+  }
+  if(m.type==='progress'){
+    const d=m.data||{};
+    const agentId=d.agentId||'';
+    const prompt=d.prompt||'';
+    const rendered=prompt?marked.parse(prompt):'<span style="color:var(--text2)">[子代理进度]</span>';
+    return `<div class="msg progress-msg"><div class="msg-role"><span class="role-progress">🔄 子代理</span><span class="ts">${ts}${agentId?' · agent-'+esc(agentId):''}</span></div><div class="msg-content">${rendered}</div></div>`;
   }
   return '';
 }
