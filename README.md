@@ -2,6 +2,8 @@
 
 可视化分析 Claude Code 对话日志的本地 Web 工具。
 
+![alt text](image.png)
+
 ## 启动
 
 ```bash
