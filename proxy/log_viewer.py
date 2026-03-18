@@ -73,6 +73,54 @@ def list_log_files() -> list:
     return files
 
 
+def list_all_entries() -> list:
+    """List all log entries from all files, sorted by timestamp."""
+    if not LOG_DIR.exists():
+        return []
+
+    all_entries = []
+    for log_file in LOG_DIR.glob("proxy_*.jsonl"):
+        try:
+            with open(log_file, encoding="utf-8") as f:
+                for line_num, line in enumerate(f, 1):
+                    line = line.strip()
+                    if line:
+                        try:
+                            entry = json.loads(line)
+                            # Add metadata for identification
+                            entry["_file"] = log_file.name
+                            entry["_line"] = line_num
+                            all_entries.append(entry)
+                        except json.JSONDecodeError:
+                            continue
+        except:
+            continue
+
+    # Sort by timestamp (newest first)
+    all_entries.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
+    return all_entries
+
+
+def get_single_entry(filename: str, line_num: int) -> dict:
+    """Get a single entry from a log file by line number."""
+    log_file = LOG_DIR / filename
+    if not log_file.exists() or not str(log_file.resolve()).startswith(str(LOG_DIR.resolve())):
+        return {}
+
+    try:
+        with open(log_file, encoding="utf-8") as f:
+            for idx, line in enumerate(f, 1):
+                if idx == line_num:
+                    line = line.strip()
+                    if line:
+                        return json.loads(line)
+                    break
+    except:
+        pass
+
+    return {}
+
+
 def get_log_entries(filename: str) -> list:
     """Read all entries from a log file."""
     log_file = LOG_DIR / filename
@@ -103,10 +151,10 @@ class ViewerHandler(http.server.BaseHTTPRequestHandler):
         """Handle GET requests."""
         if self.path == '/':
             self._serve_index()
-        elif self.path == '/api/files':
-            self._serve_file_list()
-        elif self.path.startswith('/api/log?'):
-            self._serve_log_entries()
+        elif self.path == '/api/entries':
+            self._serve_all_entries()
+        elif self.path.startswith('/api/entry?'):
+            self._serve_single_entry()
         else:
             self.send_error(404)
 
@@ -126,8 +174,35 @@ class ViewerHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(files, ensure_ascii=False).encode('utf-8'))
 
-    def _serve_log_entries(self):
-        """Serve log entries for a specific file."""
+    def _serve_all_entries(self):
+        """Serve all log entries from all files."""
+        entries = list_all_entries()
+        # Create summary for each entry
+        summaries = []
+        for entry in entries:
+            method = entry.get("method", "")
+            path = entry.get("path", "")
+            timestamp = entry.get("timestamp", "")
+            status = entry.get("response", {}).get("status", 0)
+
+            summaries.append({
+                "file": entry.get("_file", ""),
+                "line": entry.get("_line", 0),
+                "method": method,
+                "path": path,
+                "timestamp": timestamp,
+                "status": status,
+                "formatted_time": format_time(timestamp),
+                "preview": f"{method} {path}"
+            })
+
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(summaries, ensure_ascii=False).encode('utf-8'))
+
+    def _serve_single_entry(self):
+        """Serve a single log entry."""
         # Parse query string
         query = self.path.split('?', 1)[1] if '?' in self.path else ''
         params = {}
@@ -137,19 +212,17 @@ class ViewerHandler(http.server.BaseHTTPRequestHandler):
                 params[key] = value
 
         filename = params.get('file', '')
-        if not filename:
+        line_num = params.get('line', '0')
+
+        if not filename or not line_num.isdigit():
             self.send_error(400)
             return
 
-        entries = get_log_entries(filename)
+        entry = get_single_entry(filename, int(line_num))
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
-        response = {
-            "entries": entries,
-            "filename": filename
-        }
-        self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+        self.wfile.write(json.dumps(entry, ensure_ascii=False).encode('utf-8'))
 
     def log_message(self, format, *args):
         """Custom log format."""
@@ -253,8 +326,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Ar
 .tool-id { font-size: 11px; color: var(--text-muted); font-family: 'SF Mono', Consolas, monospace; }
 .json-content, .result-content { font-family: 'SF Mono', Consolas, monospace;
   font-size: 13px; background: #f6f8fa; padding: 8px; border-radius: 3px;
-  overflow-x: auto; margin: 0; }
-.json-content code, .result-content code { background: none; padding: 0; }
+  overflow-x: auto; margin: 0; line-height: 1.5; }
+.json-content code, .result-content code { background: none; padding: 0; white-space: pre; }
 .markdown-content { line-height: 1.7; }
 .markdown-content h1, .markdown-content h2, .markdown-content h3 { margin-top: 16px; margin-bottom: 8px; }
 .markdown-content h1:first-child, .markdown-content h2:first-child, .markdown-content h3:first-child { margin-top: 0; }
@@ -288,6 +361,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Ar
   background: var(--bg-tertiary); color: var(--text-muted); font-weight: 500; }
 .error-block { background: #ffebe9; border-left: 3px solid var(--error); }
 .error-block .block-content { color: var(--error); }
+.diff-view { font-family: 'SF Mono', Consolas, monospace; font-size: 13px; overflow-x: auto; }
+.diff-file-header { padding: 5px 12px; background: #f6f8fa; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-muted); font-weight: 600; }
+.diff-replace-all { padding: 3px 12px; background: #fff8e1; font-size: 11px; color: #bf5700; border-bottom: 1px solid #ffe082; }
+.diff-line { display: flex; padding: 1px 0; white-space: pre; line-height: 1.6; min-height: 21px; }
+.diff-sign { width: 28px; flex-shrink: 0; text-align: center; user-select: none; font-weight: 700; }
+.diff-line-content { flex: 1; padding-right: 12px; white-space: pre-wrap; word-break: break-all; }
+.diff-del { background: #ffebe9; color: #82071e; } .diff-del .diff-sign { color: #cf222e; }
+.diff-add { background: #dafbe1; color: #116329; } .diff-add .diff-sign { color: #1a7f37; }
 </style>
 </head>
 <body>
@@ -295,16 +376,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Ar
 <div class="container">
   <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <span>日志文件</span>
+      <span>请求记录</span>
       <button class="toggle-btn" onclick="toggleSidebar()" title="隐藏侧边栏">◀</button>
     </div>
     <div class="file-list" id="fileList"></div>
     <div class="resize-handle" id="resizeHandle"></div>
   </div>
   <div class="main">
-    <div class="main-header" id="header">选择一个日志文件查看</div>
+    <div class="main-header" id="header">选择一条记录查看详情</div>
     <div class="entries" id="entries">
-      <div class="empty-state">从左侧面板选择一个日志文件</div>
+      <div class="empty-state">从左侧面板选择一条记录</div>
     </div>
   </div>
 </div>
@@ -362,14 +443,16 @@ function detectAndHighlight(text) {
       (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
     try {
       JSON.parse(trimmed);
-      return '<pre class="json-content"><code>' + highlightCode(trimmed, 'json') + '</code></pre>';
+      const highlighted = highlightCode(text, 'json');
+      return '<pre class="json-content"><code>' + highlighted + '</code></pre>';
     } catch (e) {}
   }
 
   // Check if it looks like code (has common code patterns)
   if (/^(function|const|let|var|class|import|export|def|class |public |private )/m.test(trimmed) ||
       /[{}\\[\\];]/.test(trimmed)) {
-    return '<pre class="result-content"><code>' + highlightCode(trimmed, '') + '</code></pre>';
+    const highlighted = highlightCode(text, '');
+    return '<pre class="result-content"><code>' + highlighted + '</code></pre>';
   }
 
   // Check if text has many consecutive newlines (likely formatted text)
@@ -412,6 +495,26 @@ function formatJson(obj) {
   }
 }
 
+function renderEditDiff(input) {
+  const filePath = input.file_path || input.path || '';
+  const oldStr = input.old_string || '';
+  const newStr = input.new_string || '';
+  if (!oldStr && !newStr) {
+    return '<pre class="json-content"><code>' + highlightCode(formatJson(input), 'json') + '</code></pre>';
+  }
+  let html = '<div class="diff-view">';
+  if (filePath) html += `<div class="diff-file-header">📄 ${escapeHtml(filePath)}</div>`;
+  if (input.replace_all) html += '<div class="diff-replace-all">⚠ replace_all 模式</div>';
+  oldStr.split('\\n').forEach(line => {
+    html += `<div class="diff-line diff-del"><span class="diff-sign">-</span><span class="diff-line-content">${escapeHtml(line)}</span></div>`;
+  });
+  newStr.split('\\n').forEach(line => {
+    html += `<div class="diff-line diff-add"><span class="diff-sign">+</span><span class="diff-line-content">${escapeHtml(line)}</span></div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
 function renderContentBlock(block, index) {
   if (!block || !block.type) return '';
 
@@ -441,14 +544,21 @@ function renderContentBlock(block, index) {
 
     case 'tool_use':
       const toolName = block.name || 'unknown';
-      const toolInput = block.input ? formatJson(block.input) : '';
+      const isEditTool = toolName === 'Edit' || toolName === 'edit';
+      let toolBody = '';
+      if (isEditTool && block.input) {
+        toolBody = renderEditDiff(block.input);
+      } else {
+        const toolInput = block.input ? formatJson(block.input) : '';
+        toolBody = `<pre class="json-content"><code>${highlightCode(toolInput, 'json')}</code></pre>`;
+      }
       html += `<div class="content-block tool-use-block">
         <div class="block-label collapsible" onclick="toggleBlock('${blockId}')">
           <span class="toggle-icon">▶</span> 🔧 工具调用: <code>${escapeHtml(toolName)}</code>
           ${block.id ? `<span class="tool-id">[${escapeHtml(block.id)}]</span>` : ''}
         </div>
         <div class="block-content collapsed" id="${blockId}">
-          <pre class="json-content"><code>${highlightCode(toolInput, 'json')}</code></pre>
+          ${toolBody}
         </div>
       </div>`;
       break;
@@ -505,170 +615,166 @@ function toggleBlock(blockId) {
 
 async function loadFileList() {
   try {
-    const res = await fetch('/api/files');
-    const files = await res.json();
-    renderFileList(files);
+    const res = await fetch('/api/entries');
+    const entries = await res.json();
+    renderFileList(entries);
   } catch (e) {
-    console.error('加载文件列表失败:', e);
+    console.error('加载记录列表失败:', e);
   }
 }
 
-function renderFileList(files) {
+function renderFileList(entries) {
   const container = document.getElementById('fileList');
-  if (!files.length) {
-    container.innerHTML = '<div class="empty-state">暂无日志文件</div>';
+  if (!entries.length) {
+    container.innerHTML = '<div class="empty-state">暂无日志记录</div>';
     return;
   }
-  container.innerHTML = files.map(f => `
-    <div class="file-item" onclick="loadLog('${f.name}')" data-name="${f.name}">
-      <div class="file-name">${escapeHtml(f.display_name)}</div>
+  container.innerHTML = entries.map(e => `
+    <div class="file-item" onclick="loadEntry('${e.file}', ${e.line})" data-key="${e.file}-${e.line}">
+      <div class="file-name">${escapeHtml(e.method)} ${escapeHtml(e.path)}</div>
       <div class="file-meta">
-        <span>${escapeHtml(f.formatted_time)}</span>
-        <span>${f.count} 条</span>
-        <span>${formatSize(f.size)}</span>
+        <span>${escapeHtml(e.formatted_time)}</span>
+        ${e.status ? `<span class="entry-status ${e.status >= 200 && e.status < 300 ? 'success' : 'error'}">${e.status}</span>` : ''}
       </div>
-      ${f.preview ? `<div class="file-preview">${escapeHtml(f.preview)}</div>` : ''}
     </div>
   `).join('');
 }
 
-async function loadLog(filename) {
+async function loadEntry(filename, lineNum) {
   try {
     document.querySelectorAll('.file-item').forEach(f => f.classList.remove('active'));
-    document.querySelector(`[data-name="${filename}"]`)?.classList.add('active');
+    document.querySelector(`[data-key="${filename}-${lineNum}"]`)?.classList.add('active');
 
-    const res = await fetch(`/api/log?file=${encodeURIComponent(filename)}`);
-    const data = await res.json();
+    const res = await fetch(`/api/entry?file=${encodeURIComponent(filename)}&line=${lineNum}`);
+    const entry = await res.json();
 
-    document.getElementById('header').textContent = `${data.filename} (${data.entries.length} 条记录)`;
-    renderEntries(data.entries);
+    document.getElementById('header').textContent = `${entry.method || 'UNKNOWN'} ${entry.path || '/'} - ${filename}:${lineNum}`;
+    renderEntry(entry);
   } catch (e) {
-    console.error('加载日志失败:', e);
+    console.error('加载记录失败:', e);
     document.getElementById('entries').innerHTML = '<div class="empty-state">加载失败</div>';
   }
 }
 
-function renderEntries(entries) {
+function renderEntry(entry) {
   const container = document.getElementById('entries');
-  if (!entries.length) {
-    container.innerHTML = '<div class="empty-state">此日志文件为空</div>';
+  if (!entry || Object.keys(entry).length === 0) {
+    container.innerHTML = '<div class="empty-state">记录为空</div>';
     return;
   }
 
-  const html = entries.map((entry, entryIdx) => {
-    const method = entry.method || 'UNKNOWN';
-    const path = entry.path || '/';
-    const timestamp = entry.timestamp || '';
-    const status = entry.response?.status || 0;
-    const hasError = entry.error || status >= 400;
-    const statusClass = status >= 200 && status < 300 ? 'success' : 'error';
-    const timeStr = formatTime(timestamp);
+  const method = entry.method || 'UNKNOWN';
+  const path = entry.path || '/';
+  const timestamp = entry.timestamp || '';
+  const status = entry.response?.status || 0;
+  const hasError = entry.error || status >= 400;
+  const statusClass = status >= 200 && status < 300 ? 'success' : 'error';
+  const timeStr = formatTime(timestamp);
 
-    let bodyHtml = '';
+  let bodyHtml = '';
 
-    // Render request messages
-    if (entry.request?.body?.messages) {
-      const messages = entry.request.body.messages;
-      messages.forEach((msg, msgIdx) => {
-        if (msg.role === 'user') {
-          bodyHtml += '<div class="section user-section">';
-          bodyHtml += '<div class="section-title">👤 User 发送</div>';
+  // Render request messages
+  if (entry.request?.body?.messages) {
+    const messages = entry.request.body.messages;
+    messages.forEach((msg, msgIdx) => {
+      if (msg.role === 'user') {
+        bodyHtml += '<div class="section user-section">';
+        bodyHtml += '<div class="section-title">👤 User 发送</div>';
 
-          if (Array.isArray(msg.content)) {
-            msg.content.forEach((block, blockIdx) => {
-              bodyHtml += renderContentBlock(block, `${entryIdx}-req-${msgIdx}-${blockIdx}`);
-            });
-          } else if (typeof msg.content === 'string') {
-            bodyHtml += `<div class="content-block text-block">
-              <div class="block-content">${escapeHtml(msg.content)}</div>
-            </div>`;
-          }
-
-          bodyHtml += '</div>';
-        } else if (msg.role === 'assistant') {
-          bodyHtml += '<div class="section assistant-section">';
-          bodyHtml += '<div class="section-title">🤖 Assistant (上下文)</div>';
-
-          if (Array.isArray(msg.content)) {
-            msg.content.forEach((block, blockIdx) => {
-              bodyHtml += renderContentBlock(block, `${entryIdx}-req-asst-${msgIdx}-${blockIdx}`);
-            });
-          }
-
-          bodyHtml += '</div>';
+        if (Array.isArray(msg.content)) {
+          msg.content.forEach((block, blockIdx) => {
+            bodyHtml += renderContentBlock(block, `req-${msgIdx}-${blockIdx}`);
+          });
+        } else if (typeof msg.content === 'string') {
+          bodyHtml += `<div class="content-block text-block">
+            <div class="block-content">${escapeHtml(msg.content)}</div>
+          </div>`;
         }
-      });
-    }
 
-    // Render response content
-    if (entry.response?.body?.content) {
-      bodyHtml += '<div class="section assistant-section">';
-      bodyHtml += '<div class="section-title">🤖 Assistant 返回</div>';
+        bodyHtml += '</div>';
+      } else if (msg.role === 'assistant') {
+        bodyHtml += '<div class="section assistant-section">';
+        bodyHtml += '<div class="section-title">🤖 Assistant (上下文)</div>';
 
-      const content = entry.response.body.content;
-      if (Array.isArray(content)) {
-        content.forEach((block, blockIdx) => {
-          bodyHtml += renderContentBlock(block, `${entryIdx}-resp-${blockIdx}`);
-        });
-      } else if (typeof content === 'string') {
-        bodyHtml += `<div class="content-block text-block">
-          <div class="block-content">${escapeHtml(content)}</div>
-        </div>`;
-      }
+        if (Array.isArray(msg.content)) {
+          msg.content.forEach((block, blockIdx) => {
+            bodyHtml += renderContentBlock(block, `req-asst-${msgIdx}-${blockIdx}`);
+          });
+        }
 
-      bodyHtml += '</div>';
-    }
-
-    // Show model and usage info
-    if (entry.response?.body) {
-      const res = entry.response.body;
-      const infoParts = [];
-      if (res.model) infoParts.push(`模型: ${res.model}`);
-      if (res.usage) {
-        const u = res.usage;
-        if (u.input_tokens) infoParts.push(`输入: ${u.input_tokens.toLocaleString()}`);
-        if (u.output_tokens) infoParts.push(`输出: ${u.output_tokens.toLocaleString()}`);
-        if (u.cache_read_input_tokens) infoParts.push(`缓存读取: ${u.cache_read_input_tokens.toLocaleString()}`);
-        if (u.cache_creation_input_tokens) infoParts.push(`缓存创建: ${u.cache_creation_input_tokens.toLocaleString()}`);
-      }
-      if (res.stop_reason) infoParts.push(`停止原因: ${res.stop_reason}`);
-
-      if (infoParts.length > 0) {
-        bodyHtml += '<div class="section">';
-        bodyHtml += '<div class="section-title">ℹ️ 信息</div>';
-        bodyHtml += `<div class="info-line">${infoParts.join(' | ')}</div>`;
         bodyHtml += '</div>';
       }
+    });
+  }
+
+  // Render response content
+  if (entry.response?.body?.content) {
+    bodyHtml += '<div class="section assistant-section">';
+    bodyHtml += '<div class="section-title">🤖 Assistant 返回</div>';
+
+    const content = entry.response.body.content;
+    if (Array.isArray(content)) {
+      content.forEach((block, blockIdx) => {
+        bodyHtml += renderContentBlock(block, `resp-${blockIdx}`);
+      });
+    } else if (typeof content === 'string') {
+      bodyHtml += `<div class="content-block text-block">
+        <div class="block-content">${escapeHtml(content)}</div>
+      </div>`;
     }
 
-    // Error section
-    if (entry.error) {
+    bodyHtml += '</div>';
+  }
+
+  // Show model and usage info
+  if (entry.response?.body) {
+    const res = entry.response.body;
+    const infoParts = [];
+    if (res.model) infoParts.push(`模型: ${res.model}`);
+    if (res.usage) {
+      const u = res.usage;
+      if (u.input_tokens) infoParts.push(`输入: ${u.input_tokens.toLocaleString()}`);
+      if (u.output_tokens) infoParts.push(`输出: ${u.output_tokens.toLocaleString()}`);
+      if (u.cache_read_input_tokens) infoParts.push(`缓存读取: ${u.cache_read_input_tokens.toLocaleString()}`);
+      if (u.cache_creation_input_tokens) infoParts.push(`缓存创建: ${u.cache_creation_input_tokens.toLocaleString()}`);
+    }
+    if (res.stop_reason) infoParts.push(`停止原因: ${res.stop_reason}`);
+
+    if (infoParts.length > 0) {
       bodyHtml += '<div class="section">';
-      bodyHtml += '<div class="section-title">❌ 错误</div>';
-      bodyHtml += `<div class="content-block error-block">
-        <div class="block-content">${escapeHtml(entry.error)}</div>
-      </div>`;
+      bodyHtml += '<div class="section-title">ℹ️ 信息</div>';
+      bodyHtml += `<div class="info-line">${infoParts.join(' | ')}</div>`;
       bodyHtml += '</div>';
     }
+  }
 
-    // If no useful content found, show message
-    if (!bodyHtml) {
-      bodyHtml = '<div class="empty-state" style="height: auto; padding: 20px;">无可显示内容</div>';
-    }
+  // Error section
+  if (entry.error) {
+    bodyHtml += '<div class="section">';
+    bodyHtml += '<div class="section-title">❌ 错误</div>';
+    bodyHtml += `<div class="content-block error-block">
+      <div class="block-content">${escapeHtml(entry.error)}</div>
+    </div>`;
+    bodyHtml += '</div>';
+  }
 
-    return `
-      <div class="entry">
-        <div class="entry-header">
-          <span class="entry-method ${method}">${method}</span>
-          <span class="entry-path">${escapeHtml(path)}</span>
-          ${status ? `<span class="entry-status ${statusClass}">${status}</span>` : ''}
-          ${hasError ? '<span class="badge error-badge">ERROR</span>' : ''}
-          <span class="entry-time">${timeStr}</span>
-        </div>
-        <div class="entry-body">${bodyHtml}</div>
+  // If no useful content found, show message
+  if (!bodyHtml) {
+    bodyHtml = '<div class="empty-state" style="height: auto; padding: 20px;">无可显示内容</div>';
+  }
+
+  const html = `
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-method ${method}">${method}</span>
+        <span class="entry-path">${escapeHtml(path)}</span>
+        ${status ? `<span class="entry-status ${statusClass}">${status}</span>` : ''}
+        ${hasError ? '<span class="badge error-badge">ERROR</span>' : ''}
+        <span class="entry-time">${timeStr}</span>
       </div>
-    `;
-  }).join('');
+      <div class="entry-body">${bodyHtml}</div>
+    </div>
+  `;
 
   container.innerHTML = html;
 }
@@ -729,7 +835,7 @@ def main():
     """Start the log viewer server."""
     import sys
 
-    port = 8901
+    port = 8902
     if len(sys.argv) > 1:
         try:
             port = int(sys.argv[1])
