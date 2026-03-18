@@ -14,7 +14,7 @@ from datetime import datetime
 
 # 默认配置
 DEFAULT_CONFIG = {
-    "target_url": "https://ccmax.laoanclaude.top",
+    "target_url": "https://xxxxx.xxxx",
     "port": 8900,
     "log_dir": "logs"
 }

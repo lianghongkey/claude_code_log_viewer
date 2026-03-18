@@ -76,7 +76,7 @@ curl -X POST http://localhost:8900/config \
 
 | 字段 | 说明 | 默认值 |
 |------|------|--------|
-| `target_url` | 目标 API 服务器地址 | `https://ccmax.laoanclaude.top` |
+| `target_url` | 目标 API 服务器地址 | `https://xxxxx.xxxx` |
 | `port` | 本地监听端口 | `8900` |
 | `log_dir` | 日志保存目录 | `logs` |
 
@@ -96,7 +96,7 @@ curl -X POST http://localhost:8900/config \
   "method": "POST",
   "path": "/v1/messages",
   "request": {
-    "url": "https://ccmax.laoanclaude.top/v1/messages",
+    "url": "https://xxxxx.xxxx/v1/messages",
     "headers": {"x-api-key": "sk-...", "content-type": "application/json"},
     "body": {"model": "claude-sonnet-4-6", "messages": [...]}
   },
