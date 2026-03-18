@@ -166,6 +166,7 @@ def get_index_html() -> str:
 <title>Proxy Log Viewer</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -227,16 +228,66 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Ar
 .section:last-child { margin-bottom: 0; }
 .section-title { font-size: 12px; font-weight: 600; color: var(--text);
   margin-bottom: 6px; letter-spacing: 0.03em; }
-.content-block { background: var(--bg-tertiary); border-radius: 4px; padding: 12px;
-  font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
-.user-content { background: var(--user-bg); border-left: 3px solid var(--success); }
-.assistant-content { background: var(--assistant-bg); border-left: 3px solid var(--accent); }
+.content-block { background: var(--bg-tertiary); border-radius: 4px; padding: 0;
+  margin-bottom: 8px; border: 1px solid var(--border); overflow: hidden; }
+.content-block:last-child { margin-bottom: 0; }
+.block-label { font-size: 13px; font-weight: 600; padding: 8px 12px;
+  background: var(--bg-secondary); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 6px; }
+.block-label.collapsible { cursor: pointer; user-select: none; }
+.block-label.collapsible:hover { background: var(--bg-tertiary); }
+.toggle-icon { font-size: 10px; color: var(--text-muted); transition: transform 0.15s; }
+.block-content { padding: 12px; font-size: 14px; line-height: 1.6;
+  word-break: break-word; overflow-y: visible; }
+.block-content.collapsed { display: none; }
+.text-block .block-content { background: #f6f8fa; }
+.text-block .block-content.raw-text { white-space: pre-wrap; }
+.thinking-block .block-label { background: #fff8e1; border-bottom-color: #ffe082; }
+.thinking-block .block-content { background: #fffef7; color: #5f4c00; }
+.tool-use-block .block-label { background: #e3f2fd; border-bottom-color: #90caf9; }
+.tool-use-block .block-content { background: #f0f7ff; }
+.tool-result-block .block-label { background: #e8f5e9; border-bottom-color: #a5d6a7; }
+.tool-result-block .block-content { background: #f1f8f4; }
+.tool-result-block.error .block-label { background: #ffebee; border-bottom-color: #ef9a9a; }
+.tool-result-block.error .block-content { background: #fff5f5; color: var(--error); }
+.tool-id { font-size: 11px; color: var(--text-muted); font-family: 'SF Mono', Consolas, monospace; }
+.json-content, .result-content { font-family: 'SF Mono', Consolas, monospace;
+  font-size: 13px; background: #f6f8fa; padding: 8px; border-radius: 3px;
+  overflow-x: auto; margin: 0; }
+.json-content code, .result-content code { background: none; padding: 0; }
+.markdown-content { line-height: 1.7; }
+.markdown-content h1, .markdown-content h2, .markdown-content h3 { margin-top: 16px; margin-bottom: 8px; }
+.markdown-content h1:first-child, .markdown-content h2:first-child, .markdown-content h3:first-child { margin-top: 0; }
+.markdown-content h1 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.markdown-content h2 { font-size: 1.3em; }
+.markdown-content h3 { font-size: 1.1em; }
+.markdown-content p { margin-bottom: 12px; }
+.markdown-content p:last-child { margin-bottom: 0; }
+.markdown-content ul, .markdown-content ol { margin-left: 20px; margin-bottom: 12px; }
+.markdown-content li { margin-bottom: 4px; }
+.markdown-content code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px;
+  font-family: 'SF Mono', Consolas, monospace; font-size: 0.9em; }
+.markdown-content pre { background: #f6f8fa; padding: 12px; border-radius: 4px;
+  overflow-x: auto; margin-bottom: 12px; }
+.markdown-content pre:last-child { margin-bottom: 0; }
+.markdown-content pre code { background: none; padding: 0; }
+.markdown-content blockquote { border-left: 3px solid var(--border); padding-left: 12px;
+  color: var(--text-muted); margin-bottom: 12px; }
+.markdown-content a { color: var(--accent); text-decoration: none; }
+.markdown-content a:hover { text-decoration: underline; }
+.raw-text { white-space: pre-wrap; font-family: 'SF Mono', Consolas, monospace; font-size: 13px; }
+.user-section { background: var(--user-bg); padding: 12px; border-radius: 4px;
+  border-left: 3px solid var(--success); margin-bottom: 12px; }
+.assistant-section { background: var(--assistant-bg); padding: 12px; border-radius: 4px;
+  border-left: 3px solid var(--accent); margin-bottom: 12px; }
+.unknown-block .block-label { background: #fafafa; }
 .info-line { font-size: 12px; color: var(--text-muted); }
 .empty-state { display: flex; align-items: center; justify-content: center;
   height: 100%; color: var(--text-muted); font-size: 15px; }
 .badge { font-size: 11px; padding: 2px 6px; border-radius: 10px;
   background: var(--bg-tertiary); color: var(--text-muted); font-weight: 500; }
-.error-badge { background: #ffebe9; color: var(--error); }
+.error-block { background: #ffebe9; border-left: 3px solid var(--error); }
+.error-block .block-content { color: var(--error); }
 </style>
 </head>
 <body>
@@ -260,10 +311,78 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Ar
 <script>
 hljs.configure({ ignoreUnescapedHTML: true });
 
+// Configure marked for better rendering
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+  highlight: function(code, lang) {
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return hljs.highlight(code, { language: lang }).value;
+      } catch (e) {}
+    }
+    return hljs.highlightAuto(code).value;
+  }
+});
+
 function escapeHtml(str) {
   if (!str) return '';
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  try {
+    return marked.parse(text);
+  } catch (e) {
+    return escapeHtml(text);
+  }
+}
+
+function highlightCode(code, lang) {
+  if (!code) return '';
+  try {
+    if (lang && hljs.getLanguage(lang)) {
+      return hljs.highlight(code, { language: lang }).value;
+    }
+    return hljs.highlightAuto(code).value;
+  } catch (e) {
+    return escapeHtml(code);
+  }
+}
+
+function detectAndHighlight(text) {
+  if (!text) return escapeHtml(text);
+
+  const trimmed = text.trim();
+
+  // Try to detect if it's JSON
+  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+    try {
+      JSON.parse(trimmed);
+      return '<pre class="json-content"><code>' + highlightCode(trimmed, 'json') + '</code></pre>';
+    } catch (e) {}
+  }
+
+  // Check if it looks like code (has common code patterns)
+  if (/^(function|const|let|var|class|import|export|def|class |public |private )/m.test(trimmed) ||
+      /[{}\\[\\];]/.test(trimmed)) {
+    return '<pre class="result-content"><code>' + highlightCode(trimmed, '') + '</code></pre>';
+  }
+
+  // Check if text has many consecutive newlines (likely formatted text)
+  const newlineCount = (text.match(/\\n/g) || []).length;
+  const textLength = text.length;
+
+  // If more than 10% newlines, it's likely pre-formatted, keep as-is
+  if (newlineCount > 10 && newlineCount / textLength > 0.1) {
+    return '<div class="raw-text">' + escapeHtml(text) + '</div>';
+  }
+
+  // Otherwise render as markdown (will normalize whitespace)
+  return '<div class="markdown-content">' + renderMarkdown(text) + '</div>';
 }
 
 function formatTime(timestamp) {
@@ -285,20 +404,103 @@ function formatSize(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
-function extractContent(content) {
-  if (!content) return '';
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content.map(item => {
-      if (typeof item === 'string') return item;
-      if (item.type === 'text' && item.text) return item.text;
-      if (item.content) return extractContent(item.content);
-      return '';
-    }).filter(t => t).join('');
+function formatJson(obj) {
+  try {
+    return JSON.stringify(obj, null, 2);
+  } catch {
+    return String(obj);
   }
-  if (content.text) return content.text;
-  if (content.content) return extractContent(content.content);
-  return '';
+}
+
+function renderContentBlock(block, index) {
+  if (!block || !block.type) return '';
+
+  let html = '';
+  const blockId = `block-${Date.now()}-${index}`;
+
+  switch (block.type) {
+    case 'text':
+      if (block.text) {
+        html += `<div class="content-block text-block">
+          <div class="block-label">💬 文本</div>
+          <div class="block-content">${detectAndHighlight(block.text)}</div>
+        </div>`;
+      }
+      break;
+
+    case 'thinking':
+      if (block.thinking) {
+        html += `<div class="content-block thinking-block">
+          <div class="block-label collapsible" onclick="toggleBlock('${blockId}')">
+            <span class="toggle-icon">▶</span> 🤔 思考过程
+          </div>
+          <div class="block-content collapsed" id="${blockId}">${detectAndHighlight(block.thinking)}</div>
+        </div>`;
+      }
+      break;
+
+    case 'tool_use':
+      const toolName = block.name || 'unknown';
+      const toolInput = block.input ? formatJson(block.input) : '';
+      html += `<div class="content-block tool-use-block">
+        <div class="block-label collapsible" onclick="toggleBlock('${blockId}')">
+          <span class="toggle-icon">▶</span> 🔧 工具调用: <code>${escapeHtml(toolName)}</code>
+          ${block.id ? `<span class="tool-id">[${escapeHtml(block.id)}]</span>` : ''}
+        </div>
+        <div class="block-content collapsed" id="${blockId}">
+          <pre class="json-content"><code>${highlightCode(toolInput, 'json')}</code></pre>
+        </div>
+      </div>`;
+      break;
+
+    case 'tool_result':
+      const toolResultId = block.tool_use_id || '';
+      const isError = block.is_error || false;
+      let resultContent = '';
+
+      if (typeof block.content === 'string') {
+        resultContent = block.content;
+      } else if (Array.isArray(block.content)) {
+        resultContent = block.content.map(c => {
+          if (typeof c === 'string') return c;
+          if (c.type === 'text') return c.text || '';
+          return formatJson(c);
+        }).join('\\n');
+      } else {
+        resultContent = formatJson(block.content);
+      }
+
+      html += `<div class="content-block tool-result-block ${isError ? 'error' : ''}">
+        <div class="block-label collapsible" onclick="toggleBlock('${blockId}')">
+          <span class="toggle-icon">▶</span> ${isError ? '❌' : '✅'} 工具结果
+          ${toolResultId ? `<span class="tool-id">[${escapeHtml(toolResultId)}]</span>` : ''}
+        </div>
+        <div class="block-content collapsed" id="${blockId}">
+          ${detectAndHighlight(resultContent)}
+        </div>
+      </div>`;
+      break;
+
+    default:
+      html += `<div class="content-block unknown-block">
+        <div class="block-label">❓ ${escapeHtml(block.type)}</div>
+        <div class="block-content"><pre>${escapeHtml(formatJson(block))}</pre></div>
+      </div>`;
+  }
+
+  return html;
+}
+
+function toggleBlock(blockId) {
+  const block = document.getElementById(blockId);
+  const label = block?.previousElementSibling;
+  if (block && label) {
+    block.classList.toggle('collapsed');
+    const icon = label.querySelector('.toggle-icon');
+    if (icon) {
+      icon.textContent = block.classList.contains('collapsed') ? '▶' : '▼';
+    }
+  }
 }
 
 async function loadFileList() {
@@ -353,7 +555,7 @@ function renderEntries(entries) {
     return;
   }
 
-  const html = entries.map(entry => {
+  const html = entries.map((entry, entryIdx) => {
     const method = entry.method || 'UNKNOWN';
     const path = entry.path || '/';
     const timestamp = entry.timestamp || '';
@@ -364,31 +566,57 @@ function renderEntries(entries) {
 
     let bodyHtml = '';
 
-    // Extract user messages from request
+    // Render request messages
     if (entry.request?.body?.messages) {
       const messages = entry.request.body.messages;
-      messages.forEach(msg => {
+      messages.forEach((msg, msgIdx) => {
         if (msg.role === 'user') {
-          const content = extractContent(msg.content);
-          if (content) {
-            bodyHtml += '<div class="section">';
-            bodyHtml += '<div class="section-title">👤 User 发送</div>';
-            bodyHtml += `<div class="content-block user-content">${escapeHtml(content)}</div>`;
-            bodyHtml += '</div>';
+          bodyHtml += '<div class="section user-section">';
+          bodyHtml += '<div class="section-title">👤 User 发送</div>';
+
+          if (Array.isArray(msg.content)) {
+            msg.content.forEach((block, blockIdx) => {
+              bodyHtml += renderContentBlock(block, `${entryIdx}-req-${msgIdx}-${blockIdx}`);
+            });
+          } else if (typeof msg.content === 'string') {
+            bodyHtml += `<div class="content-block text-block">
+              <div class="block-content">${escapeHtml(msg.content)}</div>
+            </div>`;
           }
+
+          bodyHtml += '</div>';
+        } else if (msg.role === 'assistant') {
+          bodyHtml += '<div class="section assistant-section">';
+          bodyHtml += '<div class="section-title">🤖 Assistant (上下文)</div>';
+
+          if (Array.isArray(msg.content)) {
+            msg.content.forEach((block, blockIdx) => {
+              bodyHtml += renderContentBlock(block, `${entryIdx}-req-asst-${msgIdx}-${blockIdx}`);
+            });
+          }
+
+          bodyHtml += '</div>';
         }
       });
     }
 
-    // Extract assistant response
+    // Render response content
     if (entry.response?.body?.content) {
-      const content = extractContent(entry.response.body.content);
-      if (content) {
-        bodyHtml += '<div class="section">';
-        bodyHtml += '<div class="section-title">🤖 Assistant 返回</div>';
-        bodyHtml += `<div class="content-block assistant-content">${escapeHtml(content)}</div>`;
-        bodyHtml += '</div>';
+      bodyHtml += '<div class="section assistant-section">';
+      bodyHtml += '<div class="section-title">🤖 Assistant 返回</div>';
+
+      const content = entry.response.body.content;
+      if (Array.isArray(content)) {
+        content.forEach((block, blockIdx) => {
+          bodyHtml += renderContentBlock(block, `${entryIdx}-resp-${blockIdx}`);
+        });
+      } else if (typeof content === 'string') {
+        bodyHtml += `<div class="content-block text-block">
+          <div class="block-content">${escapeHtml(content)}</div>
+        </div>`;
       }
+
+      bodyHtml += '</div>';
     }
 
     // Show model and usage info
@@ -401,7 +629,10 @@ function renderEntries(entries) {
         if (u.input_tokens) infoParts.push(`输入: ${u.input_tokens.toLocaleString()}`);
         if (u.output_tokens) infoParts.push(`输出: ${u.output_tokens.toLocaleString()}`);
         if (u.cache_read_input_tokens) infoParts.push(`缓存读取: ${u.cache_read_input_tokens.toLocaleString()}`);
+        if (u.cache_creation_input_tokens) infoParts.push(`缓存创建: ${u.cache_creation_input_tokens.toLocaleString()}`);
       }
+      if (res.stop_reason) infoParts.push(`停止原因: ${res.stop_reason}`);
+
       if (infoParts.length > 0) {
         bodyHtml += '<div class="section">';
         bodyHtml += '<div class="section-title">ℹ️ 信息</div>';
@@ -414,7 +645,9 @@ function renderEntries(entries) {
     if (entry.error) {
       bodyHtml += '<div class="section">';
       bodyHtml += '<div class="section-title">❌ 错误</div>';
-      bodyHtml += `<div class="content-block" style="color: var(--error); background: #ffebe9;">${escapeHtml(entry.error)}</div>`;
+      bodyHtml += `<div class="content-block error-block">
+        <div class="block-content">${escapeHtml(entry.error)}</div>
+      </div>`;
       bodyHtml += '</div>';
     }
 
