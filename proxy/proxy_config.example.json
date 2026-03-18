@@ -1,0 +1,5 @@
+{
+  "target_url": "https://api.anthropic.com",
+  "port": 8900,
+  "log_dir": "logs"
+}
