@@ -323,6 +323,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Ar
 .tool-result-block .block-content { background: #f1f8f4; }
 .tool-result-block.error .block-label { background: #ffebee; border-bottom-color: #ef9a9a; }
 .tool-result-block.error .block-content { background: #fff5f5; color: var(--error); }
+.system-block .block-label { background: #f3e5f5; border-bottom-color: #ce93d8; }
+.system-block .block-content { background: #faf5fb; color: #4a148c; }
+.tools-block .block-label { background: #e0f2f1; border-bottom-color: #80cbc4; }
+.tools-block .block-content { background: #f0f9f8; }
+.headers-block .block-label { background: #fce4ec; border-bottom-color: #f48fb1; }
+.headers-block .block-content { background: #fef5f8; }
 .tool-id { font-size: 11px; color: var(--text-muted); font-family: 'SF Mono', Consolas, monospace; }
 .json-content, .result-content { font-family: 'SF Mono', Consolas, monospace;
   font-size: 13px; background: #f6f8fa; padding: 8px; border-radius: 3px;
@@ -673,6 +679,52 @@ function renderEntry(entry) {
 
   let bodyHtml = '';
 
+  // Render system prompt
+  if (entry.request?.body?.system) {
+    const system = entry.request.body.system;
+    let systemText = '';
+
+    if (Array.isArray(system)) {
+      systemText = system.map(s => {
+        if (typeof s === 'string') return s;
+        if (s.type === 'text') return s.text || '';
+        return JSON.stringify(s);
+      }).join('\\n\\n');
+    } else if (typeof system === 'string') {
+      systemText = system;
+    }
+
+    if (systemText) {
+      const blockId = `system-${Date.now()}`;
+      bodyHtml += '<div class="section">';
+      bodyHtml += `<div class="content-block system-block">
+        <div class="block-label collapsible" onclick="toggleBlock('${blockId}')">
+          <span class="toggle-icon">▶</span> ⚙️ System Prompt
+        </div>
+        <div class="block-content collapsed" id="${blockId}">
+          <div class="raw-text">${escapeHtml(systemText)}</div>
+        </div>
+      </div>`;
+      bodyHtml += '</div>';
+    }
+  }
+
+  // Render tools
+  if (entry.request?.body?.tools && Array.isArray(entry.request.body.tools)) {
+    const tools = entry.request.body.tools;
+    const blockId = `tools-${Date.now()}`;
+    bodyHtml += '<div class="section">';
+    bodyHtml += `<div class="content-block tools-block">
+      <div class="block-label collapsible" onclick="toggleBlock('${blockId}')">
+        <span class="toggle-icon">▶</span> 🔨 Tools <span class="badge">${tools.length}</span>
+      </div>
+      <div class="block-content collapsed" id="${blockId}">
+        <pre class="json-content"><code>${highlightCode(formatJson(tools), 'json')}</code></pre>
+      </div>
+    </div>`;
+    bodyHtml += '</div>';
+  }
+
   // Render request messages
   if (entry.request?.body?.messages) {
     const messages = entry.request.body.messages;
@@ -731,6 +783,7 @@ function renderEntry(entry) {
     const res = entry.response.body;
     const infoParts = [];
     if (res.model) infoParts.push(`模型: ${res.model}`);
+    if (res.id) infoParts.push(`ID: ${res.id}`);
     if (res.usage) {
       const u = res.usage;
       if (u.input_tokens) infoParts.push(`输入: ${u.input_tokens.toLocaleString()}`);
@@ -742,10 +795,44 @@ function renderEntry(entry) {
 
     if (infoParts.length > 0) {
       bodyHtml += '<div class="section">';
-      bodyHtml += '<div class="section-title">ℹ️ 信息</div>';
+      bodyHtml += '<div class="section-title">ℹ️ 响应信息</div>';
       bodyHtml += `<div class="info-line">${infoParts.join(' | ')}</div>`;
       bodyHtml += '</div>';
     }
+  }
+
+  // Show request info
+  if (entry.request?.body) {
+    const req = entry.request.body;
+    const reqInfoParts = [];
+    if (req.max_tokens) reqInfoParts.push(`max_tokens: ${req.max_tokens.toLocaleString()}`);
+    if (req.temperature !== undefined) reqInfoParts.push(`temperature: ${req.temperature}`);
+    if (req.top_p !== undefined) reqInfoParts.push(`top_p: ${req.top_p}`);
+    if (req.top_k !== undefined) reqInfoParts.push(`top_k: ${req.top_k}`);
+    if (req.stream !== undefined) reqInfoParts.push(`stream: ${req.stream}`);
+
+    if (reqInfoParts.length > 0) {
+      bodyHtml += '<div class="section">';
+      bodyHtml += '<div class="section-title">📤 请求参数</div>';
+      bodyHtml += `<div class="info-line">${reqInfoParts.join(' | ')}</div>`;
+      bodyHtml += '</div>';
+    }
+  }
+
+  // Show request headers (collapsed by default)
+  if (entry.request?.headers) {
+    const headers = entry.request.headers;
+    const blockId = `headers-${Date.now()}`;
+    bodyHtml += '<div class="section">';
+    bodyHtml += `<div class="content-block headers-block">
+      <div class="block-label collapsible" onclick="toggleBlock('${blockId}')">
+        <span class="toggle-icon">▶</span> 📋 Request Headers
+      </div>
+      <div class="block-content collapsed" id="${blockId}">
+        <pre class="json-content"><code>${highlightCode(formatJson(headers), 'json')}</code></pre>
+      </div>
+    </div>`;
+    bodyHtml += '</div>';
   }
 
   // Error section
