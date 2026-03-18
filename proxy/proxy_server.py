@@ -23,6 +23,27 @@ DEFAULT_CONFIG = {
 config = DEFAULT_CONFIG.copy()
 
 
+def sanitize_sensitive_data(data):
+    """过滤敏感信息（如 Authorization 等）"""
+    if isinstance(data, dict):
+        sanitized = {}
+        for key, value in data.items():
+            # 过滤敏感的 header 字段
+            if key.lower() in ['authorization', 'x-api-key', 'api-key', 'token']:
+                sanitized[key] = "[REDACTED]"
+            elif isinstance(value, dict):
+                sanitized[key] = sanitize_sensitive_data(value)
+            elif isinstance(value, list):
+                sanitized[key] = [sanitize_sensitive_data(item) for item in value]
+            else:
+                sanitized[key] = value
+        return sanitized
+    elif isinstance(data, list):
+        return [sanitize_sensitive_data(item) for item in data]
+    else:
+        return data
+
+
 def save_log_entry(log_data):
     """保存日志条目到文件"""
     try:
@@ -33,9 +54,12 @@ def save_log_entry(log_data):
         date_str = datetime.now().strftime("%Y-%m-%d")
         log_file = os.path.join(log_dir, f"proxy_{date_str}.jsonl")
 
+        # 过滤敏感信息
+        sanitized_data = sanitize_sensitive_data(log_data)
+
         # 追加日志条目
         with open(log_file, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
+            f.write(json.dumps(sanitized_data, ensure_ascii=False) + '\n')
     except Exception as e:
         print(f"⚠ 保存日志失败: {e}")
 
