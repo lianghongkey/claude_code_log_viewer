@@ -4,130 +4,229 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Claude Log Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
 <style>
-:root{--bg:#ffffff;--sidebar:#f6f8fa;--card:#f0f2f5;--border:#e1e4e8;--text:#1f2328;--text2:#656d76;--accent:#0969da;--user:#e3f2fd;--assist:#f5f5f5;--think-bg:#fff9e6;--tool-bg:#e8f5e9;--result-bg:#f3e5f5;--err-bg:#ffebee;--green:#1a7f37;--orange:#bf8700;--red:#cf222e;--blue:#0969da;--purple:#8250df}
+:root{
+  --bg:#f4f1ec; --panel:#fffdf9; --panel2:#faf7f1; --border:#e3ded4; --border2:#d4cec2;
+  --ink:#211f1c; --ink2:#7a7468; --ink3:#a8a195;
+  --accent:#0f766e; --accent-soft:#e4f1ef;
+  --user:#b4530a; --user-soft:#faf0e4;
+  --think:#8a6d1d; --think-soft:#faf4e0;
+  --err:#b91c1c; --err-soft:#fbeaea;
+  --ok:#15803d;
+  --mono-bg:#23211d; --mono-fg:#e8e4dc;
+  --shadow:0 1px 2px rgba(40,35,25,.05),0 4px 14px rgba(40,35,25,.06);
+}
+[data-theme="dark"]{
+  --bg:#15171b; --panel:#1d2026; --panel2:#22262d; --border:#2d323b; --border2:#3a404b;
+  --ink:#e6e3dc; --ink2:#9a958b; --ink3:#6b665d;
+  --accent:#2dd4bf; --accent-soft:#143230;
+  --user:#fb923c; --user-soft:#2b211a;
+  --think:#d4b04a; --think-soft:#2a2517;
+  --err:#f87171; --err-soft:#321c1c;
+  --ok:#4ade80;
+  --mono-bg:#111317; --mono-fg:#d6d2c9;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);
+}
+[data-theme="dark"] .hljs{background:transparent;color:var(--mono-fg)}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
+html{font-size:15px}
+body{font-family:'IBM Plex Sans','PingFang SC','Noto Sans CJK SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--ink);height:100vh;overflow:hidden}
+code,pre,.mono{font-family:'IBM Plex Mono','Fira Code',Consolas,monospace}
 #app{display:flex;height:100vh}
-#sidebar{width:360px;min-width:360px;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:width .2s,min-width .2s}#sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:none}
-.sidebar-header{padding:12px 14px;border-bottom:1px solid var(--border);background:#fff}
-.sidebar-header h2{font-size:15px;margin-bottom:10px;color:var(--accent);letter-spacing:-.3px}
-.sidebar-header select,.sidebar-header input{width:100%;padding:6px 10px;background:#fff;border:1px solid var(--border);border-radius:0;color:var(--text);font-size:13px;margin-bottom:6px;outline:none;transition:border .15s}
+
+/* ───── 侧栏：会话列表 ───── */
+#sidebar{width:330px;min-width:330px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--panel2);transition:margin-left .25s ease}
+#sidebar.collapsed{margin-left:-330px}
+.sidebar-header{padding:14px 16px 10px;border-bottom:1px solid var(--border)}
+.sidebar-header h2{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.sidebar-header h2 .theme-btn{cursor:pointer;border:1px solid var(--border2);background:var(--panel);color:var(--ink2);font-size:12px;padding:2px 8px;border-radius:99px}
+.sidebar-header select,.sidebar-header input{width:100%;padding:7px 10px;background:var(--panel);border:1px solid var(--border2);border-radius:6px;color:var(--ink);font-size:13px;margin-bottom:8px;outline:none}
 .sidebar-header select:focus,.sidebar-header input:focus{border-color:var(--accent)}
-#file-list{flex:1;overflow-y:auto;padding:8px}
-.file-item{padding:8px 10px;border-radius:0;cursor:pointer;margin-bottom:3px;transition:all .15s}
-.file-item:hover{background:#fff}
-.file-item.active{background:var(--user)}
-.file-item .meta{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:2px}
-.file-item .preview{font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
-.file-item .tags{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap}
-.tag{font-size:10px;padding:2px 8px;border-radius:0;font-weight:600}
-.tag.model{color:#fff;background:var(--green)}
-.tag.ver{color:var(--purple);background:#f0e8ff}
-#main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#f9fafb;position:relative}
-#welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text2)}
-#welcome h1{font-size:26px;color:var(--text);margin-bottom:8px;font-weight:700}
-#conversation{flex:1;display:flex;flex-direction:column;overflow:hidden;display:none}
-#conv-header{padding:8px 16px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:13px}
-#conv-header .label{color:var(--text2);font-size:12px}
-#conv-header .value{color:var(--accent);font-weight:600}
-#messages{flex:1;overflow-y:auto;padding:16px 20px;scroll-behavior:smooth}
-#toggle-sidebar{position:absolute;left:0;top:50%;transform:translateY(-50%);z-index:10;width:20px;height:48px;background:var(--sidebar);border:1px solid var(--border);border-left:none;border-radius:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text2);transition:all .15s}#toggle-sidebar:hover{background:#fff;color:var(--accent)}
-.msg{margin-bottom:0;border-radius:0;padding:10px 14px;position:relative;line-height:1.6}
-.msg.user{background:var(--user);margin-right:8%}
-.msg.assistant{background:var(--assist);margin-left:2%}
-.msg.summary{background:var(--think-bg);margin-left:5%;margin-right:5%}
-.msg.system-msg{background:#f0f0f0;margin-left:10%;margin-right:10%;padding:10px 16px;font-size:12px}
-.msg.progress-msg{background:#e3f2fd;margin-left:5%;margin-right:5%}
-.msg-role .role-system{color:#656d76;background:#f0f0f0;padding:2px 10px;border-radius:0;font-size:11px}
-.msg-role .role-progress{color:#0969da;background:#e3f2fd;padding:2px 10px;border-radius:0;font-size:11px}
-.msg-role{font-size:12px;font-weight:600;margin-bottom:0;display:flex;align-items:center;gap:8px}
-.msg-role .role-user{color:var(--blue);background:#e3f2fd;padding:2px 10px;border-radius:0;font-size:11px}
-.msg-role .role-assistant{color:var(--green);background:var(--tool-bg);padding:2px 10px;border-radius:0;font-size:11px}
-.msg-role .role-summary{color:var(--orange);background:var(--think-bg);padding:2px 10px;border-radius:0;font-size:11px}
-.msg-role .ts{color:var(--text2);font-weight:400;font-size:11px}
-.msg-content{font-size:15px}
-.msg-content p{margin:0}
-.msg-content pre{background:#f6f8fa;border-radius:0;padding:10px;overflow-x:auto;margin:0;position:relative}
-.msg-content pre::before{content:attr(data-lang);position:absolute;top:6px;right:10px;font-size:10px;color:var(--text2);text-transform:uppercase;font-weight:600;background:#f6f8fa;padding:0 4px}
-.msg-content code{font-family:'Fira Code','JetBrains Mono',Consolas,monospace;font-size:13px}
-.msg-content code:not(pre code){background:#eff1f3;padding:2px 7px;border-radius:0;font-size:12px;color:var(--red)}
-.msg-content img{max-width:100%;border-radius:0}
-.msg-content table{border-collapse:collapse;width:100%;margin:0;border-radius:0;overflow:hidden}
-.msg-content th{background:var(--sidebar);font-weight:600;font-size:13px}
-.msg-content th,.msg-content td{border:1px solid var(--border);padding:8px 12px;text-align:left;font-size:13px}
-.msg-content blockquote{border-left:4px solid var(--accent);padding:8px 16px;margin:0;background:#f6f8fa;border-radius:0;color:var(--text2)}
-.msg-content h1,.msg-content h2,.msg-content h3{margin:0;color:var(--text);border-bottom:1px solid var(--border);padding-bottom:4px}
-.msg-content ul,.msg-content ol{padding-left:20px;margin:0}
-.msg-content li{margin:0}
-.msg-content a{color:var(--accent);text-decoration:none}
-.msg-content a:hover{text-decoration:underline}
-.msg-content hr{border:none;border-top:1px solid var(--border);margin:0}
-.collapsible{border-radius:0;margin:0;overflow:hidden}
-.collapsible-header{padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;user-select:none;transition:all .15s}
-.collapsible-header:hover{opacity:0.9}
-.collapsible-header .arrow{transition:transform .2s;font-size:10px;color:var(--text2)}
-.collapsible-header.open .arrow{transform:rotate(90deg)}
-.collapsible-body{display:none;padding:0;max-height:700px;overflow:auto}
-.collapsible-body.show{display:block}
-.think-block .collapsible-header{color:#9a6700;background:var(--think-bg)}
-.tool-block .collapsible-header{color:var(--green);background:var(--tool-bg)}
-.result-block .collapsible-header{color:var(--purple);background:var(--result-bg)}
-.err-block .collapsible-header{color:var(--red);background:var(--err-bg)}
-.tool-input{font-size:12px;color:var(--text);white-space:pre-wrap;word-break:break-all;font-family:'Fira Code',Consolas,monospace;padding:14px;background:#f6f8fa}
-.result-content{font-size:13px;white-space:pre-wrap;word-break:break-word;font-family:'Fira Code',Consolas,monospace;color:var(--text2);padding:14px;background:#fafbfc}
-.shell-block{background:#24292e;color:#e1e4e8;border-radius:0;padding:14px;margin:0;font-family:'Fira Code',Consolas,monospace;font-size:13px;overflow-x:auto}
-.shell-block .prompt{color:#85e89d}
-.shell-block .cmd{color:#e1e4e8}
-.json-view{padding:14px;font-size:13px;font-family:'Fira Code',Consolas,monospace;white-space:pre-wrap;word-break:break-word}
-.json-key{color:#0550ae;font-weight:600}
-.json-str{color:#0a3069}
-.json-num{color:#0550ae}
-.json-bool{color:#cf222e;font-weight:600}
-.json-null{color:#656d76;font-style:italic}
-.usage-bar{display:inline-flex;gap:10px;font-size:11px;color:var(--text2);margin-left:auto;background:var(--sidebar);padding:3px 10px;border-radius:0}
-.loading{text-align:center;padding:40px;color:var(--text2)}
-::-webkit-scrollbar{width:8px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:#d1d9e0;border-radius:4px}
-::-webkit-scrollbar-thumb:hover{background:#afb8c1}
-.load-file-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:0;font-size:12px;font-weight:600;cursor:pointer;margin:0;transition:all .15s}
-.load-file-btn:hover{background:#0860ca}
+#file-list{flex:1;overflow-y:auto;padding:10px}
+.file-item{padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:6px;border:1px solid transparent;transition:background .12s,border-color .12s}
+.file-item:hover{background:var(--panel);border-color:var(--border)}
+.file-item.active{background:var(--panel);border-color:var(--accent);box-shadow:var(--shadow)}
+.file-item .meta{display:flex;justify-content:space-between;font-size:11px;color:var(--ink3);margin-bottom:4px}
+.file-item .preview{font-size:13px;line-height:1.45;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.file-item .tags{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.tag{font-size:10px;padding:1px 8px;border-radius:99px;font-weight:600;border:1px solid var(--border2);color:var(--ink2)}
+.tag.model{color:var(--accent);border-color:var(--accent)}
+
+/* ───── 主区 ───── */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;min-width:0}
+#welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--ink2);gap:8px}
+#welcome h1{font-size:24px;color:var(--ink);font-weight:700;letter-spacing:-.02em}
+#conversation{flex:1;display:none;flex-direction:column;overflow:hidden}
+#conv-header{padding:10px 20px;border-bottom:1px solid var(--border);background:var(--panel);display:flex;gap:18px;align-items:center;flex-wrap:wrap;font-size:12.5px}
+#conv-header .title{font-weight:700;font-size:14px;max-width:34ch;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#conv-header .stat{color:var(--ink2)}#conv-header .stat b{color:var(--ink);font-weight:600}
+#conv-header .spacer{flex:1}
+.hdr-btn{cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--ink2);font-size:12px;padding:3px 10px;border-radius:6px}
+.hdr-btn:hover{color:var(--accent);border-color:var(--accent)}
+.hdr-toggle{display:inline-flex;align-items:center;gap:4px;cursor:pointer;color:var(--ink2);user-select:none}
+.hdr-toggle input{accent-color:var(--accent)}
+#content-row{flex:1;display:flex;overflow:hidden;min-height:0}
+#messages{flex:1;overflow-y:auto;padding:22px 28px 60vh;scroll-behavior:smooth;min-width:0}
+
+/* 显示开关 */
+#messages.hide-think .think-block{display:none}
+#messages.hide-tools .tool-row{display:none}
+#messages.hide-sys .sys-line,#messages.hide-sys .meta-block{display:none}
+
+/* ───── 大纲 ───── */
+#outline{width:250px;min-width:250px;border-left:1px solid var(--border);background:var(--panel2);overflow-y:auto;padding:12px 0;transition:margin-right .25s ease}
+#outline.collapsed{margin-right:-250px}
+#outline .o-title{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);padding:2px 16px 8px}
+.o-item{display:flex;gap:8px;padding:6px 14px;font-size:12px;line-height:1.4;color:var(--ink2);cursor:pointer;border-left:2px solid transparent}
+.o-item:hover{color:var(--ink);background:var(--panel)}
+.o-item.current{border-left-color:var(--user);color:var(--ink);background:var(--panel)}
+.o-item .o-num{color:var(--user);font-weight:600;font-size:11px;flex-shrink:0;font-family:'IBM Plex Mono',monospace}
+.o-item .o-text{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+/* ───── 轮次卡片 ───── */
+.turn{background:var(--panel);border:1px solid var(--border);border-radius:10px;margin:0 auto 22px;max-width:980px;box-shadow:var(--shadow);scroll-margin-top:14px}
+.turn-head{padding:13px 18px 12px 16px;border-bottom:1px solid var(--border);border-left:3px solid var(--user);border-radius:10px 10px 0 0;background:var(--user-soft)}
+.turn-head .turn-meta{display:flex;align-items:baseline;gap:10px;margin-bottom:6px;font-size:11px}
+.turn-head .turn-num{color:var(--user);font-weight:700;font-family:'IBM Plex Mono',monospace}
+.turn-head .ts{color:var(--ink3)}
+.turn-head .user-text{font-size:15px;line-height:1.65}
+.turn-body{padding:14px 18px 6px}
+.turn-foot{display:flex;gap:16px;padding:8px 18px;border-top:1px dashed var(--border);font-size:11px;color:var(--ink3);font-family:'IBM Plex Mono',monospace}
+.cmd-chip{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:3px 10px}
+.cmd-stdout{margin-top:8px;font-size:12px}
+
+/* markdown 正文 */
+.md{line-height:1.7;font-size:14.5px}
+.md>*+*{margin-top:.7em}
+.md p{margin:0}
+.md pre{background:var(--mono-bg);color:var(--mono-fg);border-radius:8px;padding:12px 14px;overflow-x:auto;position:relative}
+.md pre code{background:transparent;color:inherit;padding:0;font-size:12.5px;line-height:1.55}
+.md code:not(pre code){background:var(--panel2);border:1px solid var(--border);padding:1px 6px;border-radius:4px;font-size:12.5px;color:var(--user)}
+.md img{max-width:100%;border-radius:8px}
+.md table{border-collapse:collapse;width:100%}
+.md th{background:var(--panel2);font-weight:600}
+.md th,.md td{border:1px solid var(--border);padding:7px 11px;text-align:left;font-size:13px}
+.md blockquote{border-left:3px solid var(--accent);padding:6px 14px;background:var(--panel2);color:var(--ink2);border-radius:0 6px 6px 0}
+.md h1,.md h2,.md h3,.md h4{line-height:1.4;margin-top:1em}
+.md h1{font-size:1.35em}.md h2{font-size:1.2em}.md h3{font-size:1.08em}
+.md ul,.md ol{padding-left:1.5em}
+.md li+li{margin-top:.25em}
+.md a{color:var(--accent);text-decoration:none}.md a:hover{text-decoration:underline}
+.md hr{border:none;border-top:1px solid var(--border)}
+.turn-body .md{margin-bottom:12px}
+
+/* ───── 折叠块通用 ───── */
+.collapsible{border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden}
+.c-head{padding:7px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12.5px;user-select:none;background:var(--panel2)}
+.c-head:hover{filter:brightness(.985)}
+[data-theme="dark"] .c-head:hover{filter:brightness(1.15)}
+.c-head .arrow{transition:transform .15s;font-size:9px;color:var(--ink3);flex-shrink:0}
+.c-head.open .arrow{transform:rotate(90deg)}
+.c-body{display:none;max-height:560px;overflow:auto;border-top:1px solid var(--border)}
+.c-body.show{display:block}
+
+/* 思考块 */
+.think-block .c-head{color:var(--think);background:var(--think-soft);font-style:italic}
+.think-content{padding:12px 14px;font-size:13px;line-height:1.65;color:var(--ink2);white-space:pre-wrap;word-break:break-word}
+
+/* ───── 工具行：调用 + 结果 配对 ───── */
+.tool-row{border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden}
+.tool-row.err{border-color:var(--err)}
+.t-head{display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;user-select:none;font-size:12.5px;background:var(--panel2)}
+.t-head .arrow{transition:transform .15s;font-size:9px;color:var(--ink3);flex-shrink:0}
+.t-head.open .arrow{transform:rotate(90deg)}
+.t-name{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accent);flex-shrink:0}
+.t-summary{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.t-status{flex-shrink:0;font-size:11px;font-weight:700}
+.t-status.ok{color:var(--ok)}.t-status.fail{color:var(--err)}.t-status.none{color:var(--ink3);font-weight:400}
+.t-body{display:none;border-top:1px solid var(--border)}
+.t-body.show{display:block}
+.t-section{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);padding:8px 12px 0}
+.t-input{font-size:12px;white-space:pre-wrap;word-break:break-word;padding:6px 12px 10px;max-height:300px;overflow:auto}
+.t-result{font-size:12px;max-height:420px;overflow:auto;background:var(--panel2)}
+.t-result .plain{white-space:pre-wrap;word-break:break-word;padding:8px 12px;color:var(--ink2);font-family:'IBM Plex Mono',monospace;line-height:1.55}
+.t-result.error .plain{color:var(--err)}
+.shell-block{background:var(--mono-bg);color:var(--mono-fg);padding:10px 14px;font-size:12.5px;white-space:pre-wrap;word-break:break-all;line-height:1.55}
+.shell-block .prompt{color:#7ee2a8;user-select:none}
+.json-view{padding:10px 12px;font-size:12px;font-family:'IBM Plex Mono',monospace;white-space:pre-wrap;word-break:break-word;line-height:1.55}
+.json-key{color:var(--accent);font-weight:600}
+.json-str{color:var(--ink2)}
+.json-num{color:var(--user)}
+.json-bool{color:var(--err);font-weight:600}
+.json-null{color:var(--ink3);font-style:italic}
+.numbered-code{margin:0;padding:8px 12px;font-size:12px;line-height:1.5;white-space:pre;overflow-x:auto;font-family:'IBM Plex Mono',monospace}
+.numbered-code .ln{color:var(--ink3);user-select:none}
+
+/* 系统行 / 注入块 / 分隔 */
+.sys-line{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink3);padding:2px 2px 10px;font-family:'IBM Plex Mono',monospace}
+.sys-line.error{color:var(--err)}
+.meta-block .c-head{color:var(--ink3)}
+.meta-content{padding:10px 14px;font-size:12.5px;color:var(--ink2);max-height:300px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.divider{display:flex;align-items:center;gap:12px;max-width:980px;margin:0 auto 22px;color:var(--ink3);font-size:12px}
+.divider::before,.divider::after{content:'';flex:1;border-top:1px dashed var(--border2)}
+.summary-card{max-width:980px;margin:0 auto 22px;border:1px dashed var(--border2);border-radius:10px;padding:14px 18px;background:var(--panel2);color:var(--ink2);font-size:13.5px}
+.summary-card .s-label{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--think);margin-bottom:6px}
+
+/* 持久化结果懒加载 */
+.load-file-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;margin:8px 12px}
 .load-file-btn.loading{opacity:.6;cursor:wait}
-.persisted-note{color:var(--orange);font-size:12px;font-style:italic;margin:0}
-.tool-results-container{padding:0;margin:0}
+.persisted-note{color:var(--think);font-size:12px;font-style:italic;padding:8px 12px 0}
+
+.loading{text-align:center;padding:40px;color:var(--ink2)}
+.edge-btn{position:absolute;top:50%;transform:translateY(-50%);z-index:10;width:18px;height:52px;background:var(--panel2);border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--ink3);padding:0}
+.edge-btn:hover{color:var(--accent)}
+#toggle-sidebar{left:0;border-left:none;border-radius:0 6px 6px 0}
+#toggle-outline{right:0;border-right:none;border-radius:6px 0 0 6px}
+#kbd-hint{position:absolute;bottom:10px;right:14px;font-size:11px;color:var(--ink3);font-family:'IBM Plex Mono',monospace;pointer-events:none}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:5px}
+::-webkit-scrollbar-thumb:hover{background:var(--ink3)}
 </style>
 </head>
 <body>
 <div id="app">
 <aside id="sidebar">
-<div class="sidebar-header">
-<h2>Claude 日志查看器</h2>
-<select id="project-select"><option value="">加载中...</option></select>
-<input type="text" id="search" placeholder="搜索对话...">
-</div>
-<div id="file-list"></div>
+  <div class="sidebar-header">
+    <h2>Claude 日志查看器 <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙</button></h2>
+    <select id="project-select"><option value="">加载中...</option></select>
+    <input type="text" id="search" placeholder="搜索对话...">
+  </div>
+  <div id="file-list"></div>
 </aside>
 <main id="main">
-<button id="toggle-sidebar" onclick="toggleSidebar()" title="切换侧边栏">◀</button>
-<div id="welcome"><h1>Claude Code 日志查看器</h1><p>从左侧选择一个对话开始查看</p></div>
-<div id="conversation"><div id="conv-header"></div><div id="messages"></div></div>
+  <button id="toggle-sidebar" class="edge-btn" onclick="togglePanel('sidebar',this,'◀','▶')" title="切换侧边栏">◀</button>
+  <button id="toggle-outline" class="edge-btn" onclick="togglePanel('outline',this,'▶','◀')" title="切换大纲">▶</button>
+  <div id="welcome"><h1>Claude Code 日志查看器</h1><p>从左侧选择一个对话开始查看</p></div>
+  <div id="conversation">
+    <div id="conv-header"></div>
+    <div id="content-row">
+      <div id="messages"></div>
+      <nav id="outline"></nav>
+    </div>
+  </div>
+  <div id="kbd-hint">j/k 上下轮次</div>
 </main>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script>
 marked.setOptions({highlight:(code,lang)=>{try{return lang&&hljs.getLanguage(lang)?hljs.highlight(code,{language:lang}).value:hljs.highlightAuto(code).value}catch(e){return code}},breaks:true});
-let currentProject='',allFiles=[],currentSession='';
+let currentProject='',allFiles=[],currentSession='',turnEls=[],currentTurnIdx=0;
 
+/* ════════ 初始化 / 会话列表 ════════ */
 async function init(){
+  if(localStorage.getItem('clv-theme')==='dark') setTheme('dark');
   const projects=await(await fetch('/api/projects')).json();
   const sel=document.getElementById('project-select');
-  sel.innerHTML=projects.map(p=>`<option value="${p.name}">${p.display} (${p.count})</option>`).join('');
+  sel.innerHTML=projects.map(p=>`<option value="${esc(p.name)}">${esc(p.display)} (${p.count})</option>`).join('');
   if(projects.length){sel.value=projects[0].name;loadFiles(projects[0].name)}
   sel.onchange=()=>loadFiles(sel.value);
   document.getElementById('search').oninput=e=>filterFiles(e.target.value);
+  document.addEventListener('keydown',onKey);
 }
 
 async function loadFiles(project){
@@ -139,267 +238,401 @@ async function loadFiles(project){
 }
 
 function renderFileList(files){
-  const el=document.getElementById('file-list');
-  el.innerHTML=files.map(f=>{
+  document.getElementById('file-list').innerHTML=files.map(f=>{
     const d=f.timestamp?new Date(f.timestamp):new Date(f.modified*1000);
     const date=d.toLocaleDateString('zh-CN');
     const time=d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
     const size=f.size>1048576?(f.size/1048576).toFixed(1)+'MB':(f.size/1024).toFixed(0)+'KB';
-    return `<div class="file-item" data-file="${f.filename}" onclick="loadConversation('${f.filename}',this)">
+    return `<div class="file-item" data-file="${esc(f.filename)}" onclick="loadConversation('${esc(f.filename)}',this)">
       <div class="meta"><span>${date} ${time}</span><span>${size}</span></div>
-      <div class="preview">${esc(f.preview||'(空对话)')}</div>
-      <div class="tags">${f.model?`<span class="tag model">${f.model}</span>`:''}${f.version?`<span class="tag ver">v${f.version}</span>`:''}</div>
+      <div class="preview">${esc(f.title||f.preview||'(空对话)')}</div>
+      <div class="tags">${f.model?`<span class="tag model">${esc(shortModel(f.model))}</span>`:''}${f.version?`<span class="tag">v${esc(f.version)}</span>`:''}</div>
     </div>`;
   }).join('');
 }
 
 function filterFiles(q){
   q=q.toLowerCase();
-  renderFileList(q?allFiles.filter(f=>(f.preview||'').toLowerCase().includes(q)||f.filename.includes(q)||(f.model||'').toLowerCase().includes(q)):allFiles);
+  renderFileList(q?allFiles.filter(f=>((f.title||'')+(f.preview||'')).toLowerCase().includes(q)||f.filename.includes(q)||(f.model||'').toLowerCase().includes(q)):allFiles);
 }
 
+function shortModel(m){return m.replace(/^claude-/,'').replace(/-\d{8}$/,'')}
+
+/* ════════ 加载会话 → 组装轮次 ════════ */
 async function loadConversation(filename,el){
   document.querySelectorAll('.file-item').forEach(e=>e.classList.remove('active'));
   if(el)el.classList.add('active');
   document.getElementById('welcome').style.display='none';
-  const conv=document.getElementById('conversation');
-  conv.style.display='flex';
+  document.getElementById('conversation').style.display='flex';
   const msgEl=document.getElementById('messages');
   msgEl.innerHTML='<div class="loading">加载对话...</div>';
   const entries=await(await fetch(`/api/file?project=${encodeURIComponent(currentProject)}&file=${encodeURIComponent(filename)}`)).json();
   currentSession=filename.replace('.jsonl','');
   renderConversation(entries,filename);
 }
-function renderConversation(entries,filename){
-  const msgs=entries.filter(e=>e.type==='user'||e.type==='assistant'||e.type==='summary'||e.type==='system'||e.type==='progress');
-  const hdr=document.getElementById('conv-header');
-  const first=entries.find(e=>e.sessionId||e.type==='user');
-  const models=[...new Set(entries.filter(e=>e.type==='assistant'&&e.message?.model).map(e=>e.message.model))];
-  const userMsgs=msgs.filter(m=>m.type==='user'&&!isToolResult(m));
-  const assistMsgs=msgs.filter(m=>m.type==='assistant');
-  const totalIn=assistMsgs.reduce((s,m)=>(s+(m.message?.usage?.input_tokens||0)),0);
-  const totalOut=assistMsgs.reduce((s,m)=>(s+(m.message?.usage?.output_tokens||0)),0);
-  hdr.innerHTML=`<span><span class="label">会话</span> <span class="value">${filename.replace('.jsonl','').slice(0,8)}</span></span>
-    <span><span class="label">模型</span> <span class="value">${models.join(', ')||'未知'}</span></span>
-    <span><span class="label">分支</span> <span class="value">${first?.gitBranch||'-'}</span></span>
-    <span><span class="label">消息</span> <span class="value">${userMsgs.length}轮</span></span>
-    <span class="usage-bar">输入 ${fmtTokens(totalIn)} · 输出 ${fmtTokens(totalOut)}</span>`;
-  const msgEl=document.getElementById('messages');
-  msgEl.innerHTML=msgs.map(m=>renderMessage(m)).join('');
-  msgEl.querySelectorAll('pre code').forEach(b=>{try{hljs.highlightElement(b)}catch(e){}});
-  msgEl.scrollTop=0;
-}
 
-function isToolResult(m){
+function isToolResultMsg(m){
   const c=m.message?.content;
   return Array.isArray(c)&&c.length>0&&c.every(b=>b.type==='tool_result');
 }
 
-function renderMessage(m){
-  const ts=m.timestamp?new Date(m.timestamp).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
-  if(m.type==='user'){
-    if(isToolResult(m)) return renderToolResults(m);
-    return `<div class="msg user"><div class="msg-role"><span class="role-user">👤 用户</span><span class="ts">${ts}</span></div><div class="msg-content">${renderContent(m.message?.content)}</div></div>`;
-  }
-  if(m.type==='assistant'){
-    const model=m.message?.model||'';
-    const usage=m.message?.usage;
-    const usg=usage?`<span class="usage-bar">in:${fmtTokens(usage.input_tokens||0)} out:${fmtTokens(usage.output_tokens||0)}</span>`:'';
-    return `<div class="msg assistant"><div class="msg-role"><span class="role-assistant">🤖 助手</span><span class="ts">${ts} · ${model}</span>${usg}</div><div class="msg-content">${renderAssistantContent(m.message?.content)}</div></div>`;
-  }
-  if(m.type==='summary'){
-    const summaryText=m.summary||m.message?.content||'';
-    const rendered=typeof summaryText==='string'?marked.parse(summaryText):renderContent(summaryText);
-    return `<div class="msg summary"><div class="msg-role"><span class="role-summary">📋 摘要</span><span class="ts">${ts}</span></div><div class="msg-content">${rendered}</div></div>`;
-  }
-  if(m.type==='system'){
-    const subtype=m.subtype||'';
-    let body='';
-    if(subtype==='turn_duration'){
-      const sec=(m.durationMs/1000).toFixed(1);
-      body=`<span style="color:var(--text2)">⏱ 轮次耗时 <b>${sec}s</b></span>`;
-    } else if(subtype==='api_error'){
-      const err=typeof m.error==='string'?m.error:JSON.stringify(m.error||'');
-      body=`<span style="color:var(--red)">⚠️ API错误</span> <span style="color:var(--text2)">${esc(err).slice(0,200)} · 重试 ${m.retryAttempt||'?'}/${m.maxRetries||'?'}</span>`;
-    } else if(subtype==='compact_boundary'||subtype==='microcompact_boundary'){
-      const meta=m.compactMetadata||m.microcompactMetadata||{};
-      const tokens=meta.preTokens?` (${fmtTokens(meta.preTokens)} tokens)`:'';
-      body=`<span style="color:var(--purple)">📦 ${esc(m.content||subtype)}${tokens}</span>`;
-    } else {
-      body=`<span style="color:var(--text2)">${esc(m.content||subtype||'system')}</span>`;
+/* 把扁平的 entries 组装成轮次结构：
+   - 每条真实用户消息（非工具结果、非注入）开启一轮
+   - tool_result 按 tool_use_id 配对到对应 tool_use，不再单独显示
+   - system/摘要/注入 挂在所在轮次内 */
+function buildModel(entries){
+  const toolResults={};
+  let aiTitle='';
+  for(const e of entries){
+    if(e.type==='ai-title'&&e.aiTitle) aiTitle=e.aiTitle;
+    if(e.type==='user'&&Array.isArray(e.message?.content)){
+      for(const b of e.message.content){
+        if(b.type==='tool_result') toolResults[b.tool_use_id]={block:b,session:e._sessionId};
+      }
     }
-    return `<div class="msg system-msg"><div class="msg-role"><span class="role-system">⚙️ 系统</span><span class="ts">${ts}</span></div><div class="msg-content">${body}</div></div>`;
   }
-  if(m.type==='progress'){
-    const d=m.data||{};
-    const agentId=d.agentId||'';
-    const prompt=d.prompt||'';
-    const rendered=prompt?marked.parse(prompt):'<span style="color:var(--text2)">[子代理进度]</span>';
-    return `<div class="msg progress-msg"><div class="msg-role"><span class="role-progress">🔄 子代理</span><span class="ts">${ts}${agentId?' · agent-'+esc(agentId):''}</span></div><div class="msg-content">${rendered}</div></div>`;
+  const turns=[];   // {user, items:[{kind,entry}], duration, summaries}
+  const preamble=[]; // 第一条用户消息之前的内容（历史摘要等）
+  let cur=null;
+  for(const e of entries){
+    const t=e.type;
+    if(t==='user'){
+      if(isToolResultMsg(e)) continue;            // 已配对，跳过
+      if(e.isMeta){ (cur?cur.items:preamble).push({kind:'meta',entry:e}); continue; }
+      cur={user:e,items:[],duration:null};
+      turns.push(cur);
+    } else if(t==='assistant'){
+      (cur?cur.items:preamble).push({kind:'assistant',entry:e});
+    } else if(t==='summary'){
+      (cur?cur.items:preamble).push({kind:'summary',entry:e});
+    } else if(t==='system'){
+      if(e.subtype==='turn_duration'&&cur){cur.duration=e.durationMs;continue}
+      (cur?cur.items:preamble).push({kind:'system',entry:e});
+    } else if(t==='progress'){
+      (cur?cur.items:preamble).push({kind:'progress',entry:e});
+    }
+  }
+  return {turns,preamble,toolResults,aiTitle};
+}
+
+function renderConversation(entries,filename){
+  const model=buildModel(entries);
+  const assistEntries=entries.filter(e=>e.type==='assistant');
+  const models=[...new Set(assistEntries.map(e=>e.message?.model).filter(Boolean))];
+  const totalIn=assistEntries.reduce((s,m)=>s+(m.message?.usage?.input_tokens||0),0);
+  const totalOut=assistEntries.reduce((s,m)=>s+(m.message?.usage?.output_tokens||0),0);
+  const first=entries.find(e=>e.gitBranch);
+  document.getElementById('conv-header').innerHTML=`
+    <span class="title" title="${esc(model.aiTitle)}">${esc(model.aiTitle||filename.replace('.jsonl','').slice(0,8))}</span>
+    <span class="stat">模型 <b>${esc(models.map(shortModel).join(', ')||'未知')}</b></span>
+    <span class="stat">分支 <b>${esc(first?.gitBranch||'-')}</b></span>
+    <span class="stat"><b>${model.turns.length}</b> 轮</span>
+    <span class="stat mono">↓${fmtTokens(totalIn)} ↑${fmtTokens(totalOut)}</span>
+    <span class="spacer"></span>
+    <label class="hdr-toggle"><input type="checkbox" checked onchange="toggleClass('hide-think',!this.checked)">思考</label>
+    <label class="hdr-toggle"><input type="checkbox" checked onchange="toggleClass('hide-tools',!this.checked)">工具</label>
+    <label class="hdr-toggle"><input type="checkbox" checked onchange="toggleClass('hide-sys',!this.checked)">系统</label>
+    <button class="hdr-btn" onclick="setAllCollapsed(true)">全部展开</button>
+    <button class="hdr-btn" onclick="setAllCollapsed(false)">全部折叠</button>`;
+  const msgEl=document.getElementById('messages');
+  let html='';
+  if(model.preamble.length) html+=`<div class="divider">会话前导</div>`+model.preamble.map(it=>renderItem(it,model)).join('');
+  html+=model.turns.map((t,i)=>renderTurn(t,i,model)).join('');
+  msgEl.innerHTML=html||'<div class="loading">(空对话)</div>';
+  msgEl.querySelectorAll('pre code').forEach(b=>{try{hljs.highlightElement(b)}catch(e){}});
+  renderOutline(model.turns);
+  turnEls=[...msgEl.querySelectorAll('.turn')];
+  currentTurnIdx=0;
+  msgEl.scrollTop=0;
+  msgEl.onscroll=throttle(updateSpy,120);
+}
+
+/* ════════ 轮次渲染 ════════ */
+function renderTurn(t,i,model){
+  const ts=t.user.timestamp?new Date(t.user.timestamp).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+  const body=t.items.map(it=>renderItem(it,model)).join('');
+  const usage=lastUsage(t.items);
+  const foot=[];
+  if(t.duration!=null) foot.push(`⏱ ${(t.duration/1000).toFixed(1)}s`);
+  if(usage) foot.push(`↓${fmtTokens(usage.input_tokens||0)} ↑${fmtTokens(usage.output_tokens||0)} tokens`);
+  return `<section class="turn" id="turn-${i}" data-idx="${i}">
+    <div class="turn-head">
+      <div class="turn-meta"><span class="turn-num">#${i+1}</span><span class="ts">${ts}</span></div>
+      <div class="user-text">${renderUserContent(t.user)}</div>
+    </div>
+    <div class="turn-body">${body||'<div class="sys-line">（无回复）</div>'}</div>
+    ${foot.length?`<div class="turn-foot">${foot.map(f=>`<span>${f}</span>`).join('')}</div>`:''}
+  </section>`;
+}
+
+function lastUsage(items){
+  for(let i=items.length-1;i>=0;i--){
+    const u=items[i].entry?.message?.usage;
+    if(u) return u;
+  }
+  return null;
+}
+
+function renderItem(it,model){
+  if(it.kind==='assistant') return renderAssistantEntry(it.entry,model);
+  if(it.kind==='meta') return renderMetaUser(it.entry);
+  if(it.kind==='summary'){
+    const text=it.entry.summary||'';
+    return `<div class="summary-card"><div class="s-label">历史摘要</div><div class="md">${marked.parse(text)}</div></div>`;
+  }
+  if(it.kind==='system') return renderSystem(it.entry);
+  if(it.kind==='progress'){
+    const d=it.entry.data||{};
+    return makeCollapsible('meta-block',`🔄 子代理${d.agentId?' · '+esc(d.agentId):''}`,`<div class="meta-content">${esc(d.prompt||'[子代理进度]')}</div>`);
   }
   return '';
 }
 
-function renderContent(content){
-  if(!content) return '';
-  if(typeof content==='string') return marked.parse(content);
-  if(Array.isArray(content)) return content.map(b=>{
-    if(typeof b==='string') return marked.parse(b);
-    if(b.type==='text') return marked.parse(b.text||'');
-    if(b.type==='thinking') return makeCollapsible('think-block','🧠 思考过程',`<div class="result-content">${esc(b.thinking||'')}</div>`);
-    if(b.type==='tool_use') return renderToolUse(b);
-    if(b.type==='tool_result') return renderToolResultBlock(b);
-    if(b.type==='image') return '<div style="color:var(--text2);padding:8px">[图片内容]</div>';
-    return `<pre><code class="language-json">${esc(JSON.stringify(b,null,2))}</code></pre>`;
+/* ── 用户消息：识别斜杠命令 / stdout / system-reminder ── */
+function renderUserContent(m){
+  const c=m.message?.content;
+  if(typeof c==='string') return renderUserString(c);
+  if(Array.isArray(c)) return c.map(b=>{
+    if(typeof b==='string') return renderUserString(b);
+    if(b.type==='text') return renderUserString(b.text||'');
+    if(b.type==='image') return '<div style="color:var(--ink3)">🖼 [图片]</div>';
+    if(b.type==='tool_result') return '';
+    return `<div class="md"><pre><code class="language-json">${esc(JSON.stringify(b,null,2))}</code></pre></div>`;
   }).join('');
-  return marked.parse(String(content));
+  return '';
 }
 
-function renderAssistantContent(content){
+function renderUserString(s){
+  let out='';
+  // 斜杠命令
+  const cmd=s.match(/<command-name>([\s\S]*?)<\/command-name>/);
+  const args=s.match(/<command-args>([\s\S]*?)<\/command-args>/);
+  if(cmd) out+=`<div><span class="cmd-chip">⌘ ${esc(cmd[1].trim())}${args&&args[1].trim()?' '+esc(args[1].trim()):''}</span></div>`;
+  const stdout=s.match(/<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/);
+  if(stdout&&stdout[1].trim()) out+=`<div class="cmd-stdout">${makeCollapsible('meta-block','🖥 命令输出',`<div class="meta-content">${esc(stdout[1].trim())}</div>`)}</div>`;
+  // system-reminder 折叠
+  const reminders=[...s.matchAll(/<system-reminder>([\s\S]*?)<\/system-reminder>/g)];
+  for(const r of reminders){
+    out+=makeCollapsible('meta-block','📎 系统注入 system-reminder',`<div class="meta-content">${esc(r[1].trim())}</div>`);
+  }
+  // 剩余正文
+  const rest=s
+    .replace(/<command-name>[\s\S]*?<\/command-name>/g,'')
+    .replace(/<command-message>[\s\S]*?<\/command-message>/g,'')
+    .replace(/<command-args>[\s\S]*?<\/command-args>/g,'')
+    .replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/g,'')
+    .replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/g,'')
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g,'')
+    .trim();
+  if(rest) out=`<div class="md">${marked.parse(rest)}</div>`+out;
+  return out||'<span style="color:var(--ink3)">(空)</span>';
+}
+
+function renderMetaUser(m){
+  const c=m.message?.content;
+  let text='';
+  if(typeof c==='string') text=c;
+  else if(Array.isArray(c)) text=c.map(b=>b.text||'').join('\n');
+  return makeCollapsible('meta-block',`📎 上下文注入 <span style="color:var(--ink3)">${esc(text.slice(0,60))}…</span>`,`<div class="meta-content">${esc(text)}</div>`);
+}
+
+/* ── 助手消息 ── */
+function renderAssistantEntry(m,model){
+  const content=m.message?.content;
   if(!content) return '';
-  if(typeof content==='string') return marked.parse(content);
-  if(!Array.isArray(content)) return marked.parse(String(content));
+  if(typeof content==='string') return `<div class="md">${marked.parse(content)}</div>`;
+  if(!Array.isArray(content)) return `<div class="md">${marked.parse(String(content))}</div>`;
   return content.map(b=>{
-    if(b.type==='text') return marked.parse(b.text||'');
-    if(b.type==='thinking') return makeCollapsible('think-block','🧠 思考过程',`<div class="result-content">${esc(b.thinking||'')}</div>`,false);
-    if(b.type==='tool_use') return renderToolUse(b);
-    if(b.type==='tool_result') return renderToolResultBlock(b);
+    if(b.type==='text') return b.text?.trim()?`<div class="md">${marked.parse(b.text)}</div>`:'';
+    if(b.type==='thinking') return b.thinking?.trim()?makeCollapsible('think-block',`🧠 思考 <span style="color:var(--ink3);font-style:normal">${b.thinking.length} 字符</span>`,`<div class="think-content">${esc(b.thinking)}</div>`):'';
+    if(b.type==='tool_use') return renderToolRow(b,model);
     return '';
   }).join('');
 }
-function renderToolUse(b){
+
+/* ── 工具调用 + 结果 配对渲染 ── */
+const TOOL_ICONS={bash:'💻',read:'📖',write:'✏️',edit:'✏️',notebookedit:'✏️',grep:'🔍',glob:'🔍',task:'🤖',agent:'🤖',websearch:'🌐',webfetch:'🌐',todowrite:'☑️',taskcreate:'☑️',taskupdate:'☑️',skill:'⚡'};
+function renderToolRow(b,model){
+  const n=(b.name||'').toLowerCase();
+  const icon=TOOL_ICONS[n]||'🔧';
   const short=summarizeToolInput(b.name,b.input);
-  const isBash=b.name==='Bash'||b.name==='bash';
-  const isRead=b.name==='Read'||b.name==='read';
-  const isWrite=b.name==='Write'||b.name==='write';
-  const isEdit=b.name==='Edit'||b.name==='edit';
-  let body='';
-  if(isBash){
-    const cmd=b.input?.command||'';
-    body=`<div class="shell-block"><span class="prompt">$ </span><span class="cmd">${esc(cmd)}</span></div>`;
+  const res=model.toolResults[b.id];
+  const isErr=res?.block?.is_error;
+  const status=res?(isErr?'<span class="t-status fail">✗ 失败</span>':'<span class="t-status ok">✓</span>'):'<span class="t-status none">○ 无结果</span>';
+  // 输入区
+  let inputHtml;
+  if(n==='bash'){
+    inputHtml=`<div class="shell-block"><span class="prompt">$ </span>${esc(b.input?.command||'')}</div>`;
   } else {
-    body=`<div class="json-view">${colorizeJson(b.input)}</div>`;
+    inputHtml=`<div class="t-section">输入</div><div class="t-input json-view">${colorizeJson(b.input||{})}</div>`;
   }
-  const icon=isBash?'💻':isRead?'📖':(isWrite||isEdit)?'✏️':'🔧';
-  return makeCollapsible('tool-block',`${icon} <span style="font-weight:700">${b.name}</span> <span style="color:var(--text2);font-weight:400;font-size:12px">${esc(short)}</span>`,body,false);
-}
-
-function renderToolResultBlock(b){
-  let content='';
-  if(typeof b.content==='string') content=b.content;
-  else if(Array.isArray(b.content)) content=b.content.map(c=>c.text||JSON.stringify(c)).join('\n');
-  else content=JSON.stringify(b.content,null,2);
-  const lines=content.split('\n').length;
-  const isErr=b.is_error;
-  const cls=isErr?'err-block':'result-block';
-  const icon=isErr?'❌':'📄';
-  const persisted=parsePersistedOutput(content);
-  let rendered;
-  if(persisted){
-    rendered=`<div class="result-content"><p class="persisted-note">${esc(persisted.note)}</p>${persisted.preview?'<pre style="margin:8px 0">'+esc(persisted.preview)+'</pre>':''}<button class="load-file-btn" onclick="loadToolResult(this,'${persisted.toolId}','${persisted.session}')">📂 加载完整内容 (${persisted.size})</button><div class="full-content"></div></div>`;
-  } else {
-    rendered=tryHighlightResult(content);
-  }
-  return makeCollapsible(cls,`${icon} 执行结果 <span style="font-size:11px;color:var(--text2)">${lines}行</span>`,rendered,false);
-}
-
-function renderToolResults(m){
-  const session=m._sessionId||currentSession;
-  const blocks=(m.message?.content||[]).map(b=>{
-    let content='';
-    if(typeof b.content==='string') content=b.content;
-    else if(Array.isArray(b.content)) content=b.content.map(c=>c.text||JSON.stringify(c)).join('\n');
-    else content=JSON.stringify(b.content,null,2);
+  // 结果区
+  let resultHtml='';
+  if(res){
+    const content=toolResultText(res.block);
     const lines=content.split('\n').length;
-    const isErr=b.is_error;
-    const cls=isErr?'err-block':'result-block';
-    const icon=isErr?'❌':'📄';
-    const persisted=parsePersistedOutput(content,session);
-    let rendered;
+    const persisted=parsePersistedOutput(content,res.session);
+    let inner;
     if(persisted){
-      rendered=`<div class="result-content"><p class="persisted-note">${esc(persisted.note)}</p>${persisted.preview?'<pre style="margin:0">'+esc(persisted.preview)+'</pre>':''}<button class="load-file-btn" onclick="loadToolResult(this,'${persisted.toolId}','${persisted.session}')">📂 加载完整内容 (${persisted.size})</button><div class="full-content"></div></div>`;
+      inner=`<p class="persisted-note">${esc(persisted.note)}</p>${persisted.preview?`<div class="plain">${esc(persisted.preview)}</div>`:''}<button class="load-file-btn" onclick="loadToolResult(event,this,'${esc(persisted.toolId)}','${esc(persisted.session)}')">📂 加载完整内容 (${esc(persisted.size)})</button><div class="full-content"></div>`;
     } else {
-      rendered=tryHighlightResult(content);
+      inner=tryHighlightResult(content);
     }
-    return makeCollapsible(cls,`${icon} 工具结果 <span style="font-size:11px;color:var(--text2)">${lines}行</span>`,rendered,false);
-  }).join('');
-  return `<div class="tool-results-container">${blocks}</div>`;
+    resultHtml=`<div class="t-section">结果 · ${lines} 行</div><div class="t-result${isErr?' error':''}">${inner}</div>`;
+  }
+  return makeToolRow(isErr,`${icon} <span class="t-name">${esc(b.name)}</span><span class="t-summary">${esc(short)}</span>${status}`,inputHtml+resultHtml);
 }
 
+function toolResultText(b){
+  if(typeof b.content==='string') return b.content;
+  if(Array.isArray(b.content)) return b.content.map(c=>c.text||JSON.stringify(c)).join('\n');
+  return JSON.stringify(b.content,null,2);
+}
+
+function makeToolRow(isErr,head,body){
+  const id='c'+(seq++);
+  return `<div class="tool-row${isErr?' err':''}">
+    <div class="t-head" onclick="toggleCollapse('${id}',this)"><span class="arrow">▶</span>${head}</div>
+    <div class="t-body" id="${id}">${body}</div>
+  </div>`;
+}
+
+/* ── 系统行 ── */
+function renderSystem(m){
+  const st=m.subtype||'';
+  if(st==='api_error'){
+    const err=typeof m.error==='string'?m.error:JSON.stringify(m.error||'');
+    return `<div class="sys-line error">⚠ API 错误 ${esc(err).slice(0,160)} · 重试 ${m.retryAttempt||'?'}/${m.maxRetries||'?'}</div>`;
+  }
+  if(st==='compact_boundary'||st==='microcompact_boundary'){
+    const meta=m.compactMetadata||m.microcompactMetadata||{};
+    return `<div class="sys-line">📦 上下文压缩${meta.preTokens?` (压缩前 ${fmtTokens(meta.preTokens)} tokens)`:''}</div>`;
+  }
+  if(st==='away_summary'){
+    return `<div class="summary-card"><div class="s-label">离开期间摘要</div><div class="md">${marked.parse(m.content||'')}</div></div>`;
+  }
+  return `<div class="sys-line">⚙ ${esc(m.content||st||'system')}</div>`;
+}
+
+/* ════════ 大纲导航 + 滚动联动 ════════ */
+function renderOutline(turns){
+  const el=document.getElementById('outline');
+  el.innerHTML=`<div class="o-title">对话大纲 · ${turns.length} 轮</div>`+turns.map((t,i)=>{
+    return `<div class="o-item" data-idx="${i}" onclick="jumpToTurn(${i})"><span class="o-num">${i+1}</span><span class="o-text">${esc(turnExcerpt(t))}</span></div>`;
+  }).join('');
+}
+
+function turnExcerpt(t){
+  const c=t.user.message?.content;
+  let s='';
+  if(typeof c==='string') s=c;
+  else if(Array.isArray(c)) s=c.map(b=>typeof b==='string'?b:(b.text||'')).join(' ');
+  const cmd=s.match(/<command-name>([\s\S]*?)<\/command-name>/);
+  s=s.replace(/<[a-z-]+>[\s\S]*?<\/[a-z-]+>/g,'').replace(/\s+/g,' ').trim();
+  if(!s&&cmd) s='⌘ '+cmd[1].trim();
+  return s.slice(0,80)||'(空)';
+}
+
+function jumpToTurn(i){
+  const el=document.getElementById('turn-'+i);
+  if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function updateSpy(){
+  const msgEl=document.getElementById('messages');
+  const top=msgEl.scrollTop+60;
+  let idx=0;
+  for(const el of turnEls){ if(el.offsetTop<=top) idx=+el.dataset.idx; else break; }
+  if(idx===currentTurnIdx) return;
+  currentTurnIdx=idx;
+  document.querySelectorAll('.o-item').forEach(o=>o.classList.toggle('current',+o.dataset.idx===idx));
+  const cur=document.querySelector('.o-item.current');
+  if(cur) cur.scrollIntoView({block:'nearest'});
+}
+
+function onKey(e){
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT'||e.target.tagName==='TEXTAREA') return;
+  if(e.key==='j'){jumpToTurn(Math.min(currentTurnIdx+1,turnEls.length-1))}
+  else if(e.key==='k'){jumpToTurn(Math.max(currentTurnIdx-1,0))}
+}
+
+/* ════════ 结果高亮 / JSON / 折叠 等工具函数 ════════ */
 function tryHighlightResult(content){
   const trimmed=content.trim();
   if((trimmed.startsWith('{')&&trimmed.endsWith('}'))||(trimmed.startsWith('[')&&trimmed.endsWith(']'))){
     try{const obj=JSON.parse(trimmed);return `<div class="json-view">${colorizeJson(obj)}</div>`}catch(e){}
   }
   if(trimmed.match(/^\s*\d+[→│|]/m)){
-    return `<pre style="margin:0;border:none;border-radius:0;background:#fafbfc"><code>${highlightNumberedCode(trimmed)}</code></pre>`;
+    return `<div class="numbered-code">${highlightNumberedCode(trimmed)}</div>`;
   }
-  return `<div class="result-content">${esc(content)}</div>`;
+  return `<div class="plain">${esc(content)}</div>`;
 }
 
 function highlightNumberedCode(text){
   return text.split('\n').map(line=>{
     const m=line.match(/^(\s*\d+[→│|]\s?)(.*)/);
-    if(m) return `<span style="color:#8b949e;user-select:none">${esc(m[1])}</span>${esc(m[2])}`;
+    if(m) return `<span class="ln">${esc(m[1])}</span>${esc(m[2])}`;
     return esc(line);
   }).join('\n');
 }
+
 function colorizeJson(obj,indent=0){
   if(obj===null) return `<span class="json-null">null</span>`;
   if(typeof obj==='boolean') return `<span class="json-bool">${obj}</span>`;
   if(typeof obj==='number') return `<span class="json-num">${obj}</span>`;
   if(typeof obj==='string'){
     const s=esc(obj);
-    if(s.length>500) return `<span class="json-str">"${s.slice(0,500)}..."</span>`;
-    return `<span class="json-str">"${s}"</span>`;
+    return `<span class="json-str">"${s.length>800?s.slice(0,800)+'…':s}"</span>`;
   }
-  const pad=' '.repeat(indent);
-  const pad2=' '.repeat(indent+2);
+  const pad=' '.repeat(indent),pad2=' '.repeat(indent+2);
   if(Array.isArray(obj)){
-    if(obj.length===0) return '[]';
-    const items=obj.map(v=>pad2+colorizeJson(v,indent+2)).join(',\n');
-    return `[\n${items}\n${pad}]`;
+    if(!obj.length) return '[]';
+    return `[\n${obj.map(v=>pad2+colorizeJson(v,indent+2)).join(',\n')}\n${pad}]`;
   }
   const keys=Object.keys(obj);
-  if(keys.length===0) return '{}';
-  const entries=keys.map(k=>`${pad2}<span class="json-key">"${esc(k)}"</span>: ${colorizeJson(obj[k],indent+2)}`).join(',\n');
-  return `{\n${entries}\n${pad}}`;
+  if(!keys.length) return '{}';
+  return `{\n${keys.map(k=>`${pad2}<span class="json-key">"${esc(k)}"</span>: ${colorizeJson(obj[k],indent+2)}`).join(',\n')}\n${pad}}`;
 }
 
+let seq=0;
 function makeCollapsible(cls,title,body,open=false){
-  const id='c'+Math.random().toString(36).slice(2,9);
+  const id='c'+(seq++);
   return `<div class="collapsible ${cls}">
-    <div class="collapsible-header${open?' open':''}" onclick="toggleCollapse('${id}',this)">
-      <span class="arrow">▶</span>${title}
-    </div>
-    <div class="collapsible-body${open?' show':''}" id="${id}">${body}</div>
+    <div class="c-head${open?' open':''}" onclick="toggleCollapse('${id}',this)"><span class="arrow">▶</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${title}</span></div>
+    <div class="c-body${open?' show':''}" id="${id}">${body}</div>
   </div>`;
 }
 
 function toggleCollapse(id,hdr){
-  const body=document.getElementById(id);
-  body.classList.toggle('show');
+  document.getElementById(id).classList.toggle('show');
   hdr.classList.toggle('open');
 }
 
+function setAllCollapsed(open){
+  document.querySelectorAll('#messages .c-body,#messages .t-body').forEach(b=>b.classList.toggle('show',open));
+  document.querySelectorAll('#messages .c-head,#messages .t-head').forEach(h=>h.classList.toggle('open',open));
+}
+
+function toggleClass(cls,on){document.getElementById('messages').classList.toggle(cls,on)}
+
 function summarizeToolInput(name,input){
   if(!input) return '';
-  const n=name.toLowerCase();
+  const n=(name||'').toLowerCase();
   if(n==='read'||n==='write'||n==='edit') return input.file_path||input.path||'';
-  if(n==='bash') return (input.command||'').slice(0,80);
-  if(n==='glob') return input.pattern||'';
-  if(n==='grep') return input.pattern||'';
-  if(n==='task') return input.description||'';
+  if(n==='bash') return (input.command||'').slice(0,100);
+  if(n==='glob'||n==='grep') return input.pattern||'';
+  if(n==='task'||n==='agent') return input.description||'';
+  if(n==='skill') return input.skill||'';
   if(n==='websearch') return input.query||'';
   if(n==='webfetch') return input.url||'';
-  if(typeof input==='string') return input.slice(0,60);
+  if(typeof input==='string') return input.slice(0,80);
   const first=Object.values(input)[0];
-  return typeof first==='string'?first.slice(0,60):'';
+  return typeof first==='string'?first.slice(0,80):'';
 }
 
 function esc(s){
-  if(!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  if(s===null||s===undefined||s==='') return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function fmtTokens(n){
@@ -408,6 +641,16 @@ function fmtTokens(n){
   return String(n);
 }
 
+function throttle(fn,ms){
+  let last=0,timer;
+  return ()=>{
+    const now=Date.now();
+    if(now-last>ms){last=now;fn()}
+    else{clearTimeout(timer);timer=setTimeout(()=>{last=Date.now();fn()},ms)}
+  };
+}
+
+/* ════════ 持久化结果懒加载 ════════ */
 function parsePersistedOutput(content,session){
   if(!content||!content.includes('persisted-output')) return null;
   const m=content.match(/Full output saved to:.*?\/([a-f0-9-]+)\/tool-results\/([a-zA-Z0-9_]+)\.txt/);
@@ -415,15 +658,16 @@ function parsePersistedOutput(content,session){
   const sizeMatch=content.match(/Output too large \(([^)]+)\)/);
   const previewMatch=content.match(/\nFirst [\d,]+ characters:\n([\s\S]*)/);
   return {
-    session: m[1]||session||currentSession,
-    toolId: m[2],
-    size: sizeMatch?sizeMatch[1]:'unknown',
-    note: `输出过大已持久化到文件`,
-    preview: previewMatch?previewMatch[1].trim():''
+    session:m[1]||session||currentSession,
+    toolId:m[2],
+    size:sizeMatch?sizeMatch[1]:'unknown',
+    note:'输出过大已持久化到文件',
+    preview:previewMatch?previewMatch[1].trim():''
   };
 }
 
-async function loadToolResult(btn,toolId,session){
+async function loadToolResult(ev,btn,toolId,session){
+  ev.stopPropagation();
   if(btn.classList.contains('loading')) return;
   btn.classList.add('loading');
   btn.textContent='⏳ 加载中...';
@@ -432,29 +676,29 @@ async function loadToolResult(btn,toolId,session){
     if(!resp.ok) throw new Error('文件未找到');
     const data=await resp.json();
     const container=btn.nextElementSibling;
-    const rendered=tryHighlightResult(data.content);
-    container.innerHTML=rendered;
-    container.style.maxHeight='800px';
-    container.style.overflow='auto';
-    container.style.marginTop='8px';
-    container.style.border='1px solid var(--border)';
-    container.style.borderRadius='8px';
+    container.innerHTML=tryHighlightResult(data.content);
     btn.textContent='✅ 已加载';
-    btn.style.background='var(--green)';
-    btn.onclick=null;
+    btn.style.background='var(--ok)';
+    btn.onclick=e=>e.stopPropagation();
   }catch(e){
     btn.textContent='❌ 加载失败: '+e.message;
-    btn.style.background='var(--red)';
+    btn.style.background='var(--err)';
     btn.classList.remove('loading');
   }
 }
 
-function toggleSidebar(){
-  const sb=document.getElementById('sidebar');
-  const btn=document.getElementById('toggle-sidebar');
-  const collapsed=sb.classList.toggle('collapsed');
-  btn.textContent=collapsed?'▶':'◀';
+/* ════════ 面板 / 主题 ════════ */
+function togglePanel(id,btn,openCh,closeCh){
+  const collapsed=document.getElementById(id).classList.toggle('collapsed');
+  btn.textContent=collapsed?closeCh:openCh;
 }
+
+function setTheme(t){
+  document.documentElement.dataset.theme=t==='dark'?'dark':'';
+  document.getElementById('theme-btn').textContent=t==='dark'?'☀️':'🌙';
+  localStorage.setItem('clv-theme',t);
+}
+function toggleTheme(){setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark')}
 
 init();
 </script>

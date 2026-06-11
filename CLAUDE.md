@@ -23,13 +23,14 @@ No build step, no package manager, no tests.
 - `/api/file?project=X&file=Y` — return all entries from a JSONL file
 - `/api/tool-result?project=X&session=Y&id=Z` — lazy-load persisted tool result files
 
-**index.html** — Single-file SPA with rendering pipeline:
-- `renderConversation()` → filters entries by type (user/assistant/summary) → `renderMessage()`
-- User messages: `renderContent()` → marked.js for Markdown, delegates to `renderToolUse()`/`renderToolResultBlock()` for tool blocks
-- Assistant messages: `renderAssistantContent()` — similar but thinking blocks default collapsed
-- Summary messages: reads from `m.summary` field (not `m.message.content`)
-- Tool results: `tryHighlightResult()` auto-detects JSON (→ `colorizeJson()`), numbered code, or plain text
-- Large results: `parsePersistedOutput()` detects persisted-output markers, provides async load button
+**index.html** — Single-file SPA. Rendering pipeline is turn-based:
+- `buildModel(entries)` — groups flat JSONL entries into turns: each real user message (not tool_result-only, not `isMeta`) starts a turn; assistant/system/summary entries attach to the current turn. Also builds `toolResults` map (`tool_use_id` → result block) and captures `ai-title`.
+- `renderTurn()` — one card per turn: user prompt as header band, assistant flow as body, duration/tokens as footer.
+- `renderToolRow()` — tool_use paired with its tool_result (via `toolResults` map) in a single collapsible row with status (✓/✗/无结果). Tool-result-only user messages are never rendered standalone.
+- `renderUserString()` — parses `<command-name>`/`<local-command-stdout>`/`<system-reminder>` tags out of user text: commands become chips, injections become collapsed blocks, remainder rendered as Markdown.
+- Outline panel (`renderOutline()` + `updateSpy()` scroll spy) — one entry per turn, click to jump; `j`/`k` keyboard navigation.
+- Header toggles hide thinking/tools/system via body classes; light/dark theme via `data-theme` + localStorage.
+- Tool results: `tryHighlightResult()` auto-detects JSON (→ `colorizeJson()`), numbered code, or plain text; `parsePersistedOutput()` detects persisted-output markers and provides an async load button.
 
 ## Key Conventions
 

@@ -48,7 +48,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return sorted(out, key=lambda x: x['modified'], reverse=True)
 
     def _preview(self, path):
-        pv, ts, model, ver = '', '', '', ''
+        pv, ts, model, ver, title = '', '', '', '', ''
         try:
             with open(path) as f:
                 for i, line in enumerate(f):
@@ -70,9 +70,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         ver = e.get('version', '')
                     if e.get('type') == 'assistant' and not model:
                         model = e.get('message', {}).get('model', '')
+                    if e.get('type') == 'ai-title' and not title:
+                        title = e.get('aiTitle', '')
         except Exception:
             pass
-        return {'preview': pv, 'timestamp': ts, 'model': model, 'version': ver}
+        return {'preview': pv, 'timestamp': ts, 'model': model, 'version': ver, 'title': title}
 
     def get_file(self, project, filename):
         if '..' in filename or '/' in filename:
@@ -123,7 +125,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(b)
 
 if __name__ == '__main__':
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8899
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8999
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     srv = http.server.HTTPServer(('0.0.0.0', port), Handler)
     print(f"\n  Claude Log Viewer → http://localhost:{port}\n")
