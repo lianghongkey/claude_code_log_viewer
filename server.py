@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Claude Code Log Viewer - Backend Server"""
 import http.server, json, os, glob, sys
+from datetime import datetime
 from urllib.parse import urlparse, parse_qs
 
 CLAUDE_DIR = os.path.expanduser("~/.claude/projects")
@@ -45,7 +46,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             s = os.stat(f)
             out.append({'filename': os.path.basename(f), 'size': s.st_size,
                         'modified': s.st_mtime, **self._preview(f)})
-        return sorted(out, key=lambda x: x['modified'], reverse=True)
+        return sorted(out, key=self._session_time, reverse=True)
+
+    @staticmethod
+    def _session_time(f):
+        ts = f.get('timestamp')
+        if ts:
+            try:
+                return datetime.fromisoformat(ts.replace('Z', '+00:00')).timestamp()
+            except ValueError:
+                pass
+        return f['modified']
 
     def _preview(self, path):
         pv, ts, model, ver, title = '', '', '', '', ''
